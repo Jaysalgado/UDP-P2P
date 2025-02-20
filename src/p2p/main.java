@@ -1,4 +1,4 @@
-package udp.p2p;
+package p2p;
 
 public class main {
 }
