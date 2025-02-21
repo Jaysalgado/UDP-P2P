@@ -2,7 +2,6 @@ package p2p;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.Arrays;
 
 public class Protocol {
     public static final byte VERSION_NUM = 1;
