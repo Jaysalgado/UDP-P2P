@@ -71,7 +71,7 @@ public class Protocol {
         return "Protocol{" +
                 "version = " + version +
                 ", type=" + type +
-                ", nodeID=" + nodeId +
+                ", nodeID=" + nodeID +
                 ", timestamp=" + timestamp +
                 ", length=" + length +
                 ", data=" + (data.length > 0 ? new String(data) : "No Data") +
