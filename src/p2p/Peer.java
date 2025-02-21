@@ -5,29 +5,28 @@ import java.io.*;
 import java.util.*;
 
 public class Peer {
-
     private DatagramSocket socket;
-    private int port;
+    private final int port;
+    private final String pathToHomeDir = "home_directory.json"; // Grabs file that contains list of home dir
 
         public Peer(int port) {
             this.port = port;
             try {
                 socket = new DatagramSocket(port);
+                initHomeDirectory();
             } catch (SocketException e) {
                 e.printStackTrace();
             }
-
         }
 
-        public void recieve() {
-
-
+        public void receive() {
             byte[] incomingData = new byte[1024];
 
-            while(true) {
+            while (true) {
                 try {
                     DatagramPacket incomingPacket = new DatagramPacket(incomingData, incomingData.length);
                     socket.receive(incomingPacket);
+
                     String message = new String(incomingPacket.getData()).trim();
                     InetAddress IPAddress = incomingPacket.getAddress();
                     int port = incomingPacket.getPort();
@@ -40,10 +39,9 @@ public class Peer {
                     e.printStackTrace();
                 }
             }
-
         }
 
-        public void send (String message, String ipAddress){
+        public void send(String message, String ipAddress){
             try {
                 byte[] data = message.getBytes();
                 InetAddress address = InetAddress.getByName(ipAddress);
@@ -53,6 +51,57 @@ public class Peer {
                 e.printStackTrace();
             }
         }
+
+        // Method to create a home directory just in case there isn't one for the node
+        private void initHomeDirectory() {
+            File file = new File(homeDirectory);
+            if (!file.exists()) {
+                try (FileWriter writer = new FileWriter(file)) {
+                    writer.write("[]");
+                    System.out.println("Home directory not detected. Created: ");
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+
+        // Method to retrieve all items listed in the home directory
+        public List<String> retrieveDirItems() {
+            try {
+                File file = new File(pathToHomeDir);
+                if (!file.exists()) return new ArrayList<>();
+
+                BufferedReader reader = new BufferedReader(new File(file));
+                return new Gson().fromJson(reader, List.class);
+            } catch (IOException) {
+                e.printStackTrace();
+                return new ArrayList<>();
+            }
+        }
+
+        // Method to add new item to the home directory
+        public void addItemToDir(String item) {
+            try {
+                List<String> items = getItems();
+                items.add(item);
+                try (FileWriter writer = new FileWriter(pathToHomeDir)) {
+                    writer.write(new Gson().toJson(items));
+                }
+            } catch (IOException e) {
+                    e.printStackTrace();
+                }
+        }
+
+        // Method to send home directory to peers
+        public void sendHomeDir(String ipAddress) {
+            try {
+                String data = new String(Files.readAllBytes(Paths.get(pathToHomeDir)));
+                send(data, ipAddress);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
     }
 
 
