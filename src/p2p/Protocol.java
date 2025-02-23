@@ -76,4 +76,27 @@ public class Protocol {
                 ", data=" + (data.length > 0 ? new String(data) : "No Data") +
                 '}';
     }
+
+    public byte getVersion() {
+        return version;
+    }
+    public byte getType() {
+        return type;
+    }
+    public short getNodeID() {
+        return nodeID;
+    }
+    public long getTimestamp() {
+        return timestamp;
+    }
+    public int getLength() {
+        return length;
+    }
+    public byte[] getData() {
+        return data;
+    }
+
+
+
+
 }

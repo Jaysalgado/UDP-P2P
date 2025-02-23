@@ -8,19 +8,11 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 
 public class Peer {
-    private DatagramSocket socket;
-    private final int port;
-    private final String pathToHomeDir = "home_directory.json"; // Grabs file that contains list of home dir
 
-        public Peer(int port) {
-            this.port = port;
-            try {
-                socket = new DatagramSocket(port);
-                initHomeDirectory();
-            } catch (SocketException e) {
-                e.printStackTrace();
-            }
-        }
+    public void start() {
+        Hac hac = new Hac(9876);
+        hac.activateHac();
+    }
 
         public void receive() {
             byte[] incomingData = new byte[1024];
