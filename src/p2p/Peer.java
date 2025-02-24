@@ -10,59 +10,59 @@ import java.nio.file.Paths;
 public class Peer {
 
     public void start() {
-        Hac hac = new Hac(9876);
+        HacP2P hac = new HacP2P(9876);
         hac.activateHac();
     }
 
     // Method to create a home directory just in case there isn't one for the node
-    private void initHomeDirectory() {
-        File file = new File(pathToHomeDir);
-        if (!file.exists()) {
-            try (FileWriter writer = new FileWriter(file)) {
-                writer.write("[]");
-                System.out.println("Home directory not detected. Created: ");
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
-    }
-
-    // Method to retrieve all items listed in the home directory
-    public List<String> retrieveDirItems() {
-        try {
-            File file = new File(pathToHomeDir);
-            if (!file.exists()) return new ArrayList<>();
-
-            BufferedReader reader = new BufferedReader(new FileReader(file));
-            return new Gson().fromJson(reader, List.class);
-        } catch (IOException e) {
-            e.printStackTrace();
-            return new ArrayList<>();
-        }
-    }
-
-    // Method to add new item to the home directory
-    public void addItemToDir(String item) {
-        try {
-            List<String> items = retrieveDirItems();
-            items.add(item);
-            try (FileWriter writer = new FileWriter(pathToHomeDir)) {
-                writer.write(new Gson().toJson(items));
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    // Method to send home directory to peers
-    public void sendHomeDir(String ipAddress) {
-        try {
-            String data = new String(Files.readAllBytes(Paths.get(pathToHomeDir)));
-            send(data, ipAddress);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
+//    private void initHomeDirectory() {
+//        File file = new File(pathToHomeDir);
+//        if (!file.exists()) {
+//            try (FileWriter writer = new FileWriter(file)) {
+//                writer.write("[]");
+//                System.out.println("Home directory not detected. Created: ");
+//            } catch (IOException e) {
+//                e.printStackTrace();
+//            }
+//        }
+//    }
+//
+//    // Method to retrieve all items listed in the home directory
+//    public List<String> retrieveDirItems() {
+//        try {
+//            File file = new File(pathToHomeDir);
+//            if (!file.exists()) return new ArrayList<>();
+//
+//            BufferedReader reader = new BufferedReader(new FileReader(file));
+//            return new Gson().fromJson(reader, List.class);
+//        } catch (IOException e) {
+//            e.printStackTrace();
+//            return new ArrayList<>();
+//        }
+//    }
+//
+//    // Method to add new item to the home directory
+//    public void addItemToDir(String item) {
+//        try {
+//            List<String> items = retrieveDirItems();
+//            items.add(item);
+//            try (FileWriter writer = new FileWriter(pathToHomeDir)) {
+//                writer.write(new Gson().toJson(items));
+//            }
+//        } catch (IOException e) {
+//            e.printStackTrace();
+//        }
+//    }
+//
+//    // Method to send home directory to peers
+//    public void sendHomeDir(String ipAddress) {
+//        try {
+//            String data = new String(Files.readAllBytes(Paths.get(pathToHomeDir)));
+//            send(data, ipAddress);
+//        } catch (IOException e) {
+//            e.printStackTrace();
+//        }
+//    }
 
 
 }

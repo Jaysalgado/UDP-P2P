@@ -3,7 +3,7 @@ package p2p;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
-public class Protocol {
+public class HacPacket {
     public static final byte VERSION_NUM = 1;
     public static final byte TYPE_HEARTBEAT = 0x01;
     public static final byte TYPE_FAILURE = 0x02;
@@ -19,7 +19,7 @@ public class Protocol {
     private int length;
     private byte[] data;
 
-    public Protocol(byte type, short nodeID, long timestamp, byte[] data) {
+    public HacPacket(byte type, short nodeID, long timestamp, byte[] data) {
         this.version = VERSION_NUM;
         this.type = type;
         this.nodeID = nodeID;
@@ -46,7 +46,7 @@ public class Protocol {
         return buffer.array();
     }
 
-    public static Protocol convertFromBytes(byte[] bytes) {
+    public static HacPacket convertFromBytes(byte[] bytes) {
         ByteBuffer buffer = ByteBuffer.wrap(bytes);
         buffer.order(ByteOrder.BIG_ENDIAN);
 
@@ -63,7 +63,7 @@ public class Protocol {
             buffer.get(data);
         }
 
-        return new Protocol(type, nodeID, timestamp, data);
+        return new HacPacket(type, nodeID, timestamp, data);
     }
 
     public String printInfo() {

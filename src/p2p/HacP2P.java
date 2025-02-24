@@ -2,16 +2,15 @@ package p2p;
 
 import java.net.DatagramSocket;
 import java.net.*;
-import java.io.*;
 import java.security.SecureRandom;
 
-public class Hac {
+public class HacP2P {
 
     private DatagramSocket socket;
     private int port;
 
 
-    public Hac (int port){
+    public HacP2P (int port){
         this.port = port;
         try {
             socket = new DatagramSocket(port);
@@ -33,7 +32,7 @@ public class Hac {
 
         while (true) {
             try {
-                Protocol protocol = new Protocol(Protocol.TYPE_HEARTBEAT, (short) 0, System.currentTimeMillis(), data );
+                HacPacket protocol = new HacPacket(HacPacket.TYPE_HEARTBEAT, (short) 0, System.currentTimeMillis(), data );
                 byte[]  packet = protocol.convertToBytes();
                 Thread.sleep(secureRandom.nextInt(31) * 1000);
                 InetAddress address = InetAddress.getByName("localhost");
@@ -54,7 +53,7 @@ public class Hac {
             try {
                 DatagramPacket incomingPacket = new DatagramPacket(incomingData, incomingData.length);
                 socket.receive(incomingPacket);
-                Protocol packet = Protocol.convertFromBytes(incomingPacket.getData());
+                HacPacket packet = HacPacket.convertFromBytes(incomingPacket.getData());
                 InetAddress IPAddress = incomingPacket.getAddress();
                 System.out.println("Received packet from node: " + packet.getNodeID());
                 System.out.println("Containing data: " + new String(packet.getData()));
