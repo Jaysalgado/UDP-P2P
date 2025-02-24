@@ -55,13 +55,13 @@ public class Hac {
                 DatagramPacket incomingPacket = new DatagramPacket(incomingData, incomingData.length);
                 socket.receive(incomingPacket);
                 Protocol packet = Protocol.convertFromBytes(incomingPacket.getData());
+                InetAddress IPAddress = incomingPacket.getAddress();
                 System.out.println("Received packet from node: " + packet.getNodeID());
                 System.out.println("Containing data: " + new String(packet.getData()));
                 int port = incomingPacket.getPort();
 
-//                System.out.println("Received message from client: " + message);
-//                System.out.println("Client IP:" + IPAddress.getHostAddress());
-//                System.out.println("Client port:" + port);
+                System.out.println("Client IP:" + IPAddress.getHostAddress());
+                System.out.println("Client port:" + port);
 
             } catch (Exception e) {
                 e.printStackTrace();
