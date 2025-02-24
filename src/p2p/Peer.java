@@ -3,7 +3,7 @@ package p2p;
 import java.net.*;
 import java.io.*;
 import java.util.*;
-import com.google.gson.Gson; // For Jay: Make sure this library is installed, go to File > Project Structure > Libraries > hit the + > click on Maven > search up Gson Google and install the x.10 version, standard format to use JSON's in Java
+//import com.google.gson.Gson; // For Jay: Make sure this library is installed, go to File > Project Structure > Libraries > hit the + > click on Maven > search up Gson Google and install the x.10 version, standard format to use JSON's in Java
 import java.nio.file.Files;
 import java.nio.file.Paths;
 
