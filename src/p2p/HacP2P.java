@@ -15,8 +15,8 @@ public class HacP2P {
     private final int port;
     private final SecureRandom secureRandom = new SecureRandom();
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(10);
-    private final List<String> peerIPs = List.of("10.211.55.3", "10.111.150.70", "10.111.135.21"); // Add peer IPs here
-    String myIP = "10.111.135.21";
+    private final List<String> peerIPs = List.of("10.211.55.3", "10.111.150.70", "10.211.55.2"); // Add peer IPs here
+    String myIP = "10.211.55.2";
 
     public HacP2P (int port){
         this.port = port;
@@ -30,7 +30,7 @@ public class HacP2P {
 
     public void activateHac () {
         new Thread (this::startHeartbeats).start();
-        new Thread(this::checkHeartbeats).start();
+        new Thread(this::routeMessages).start();
     }
 
     private void startHeartbeats ()  {
@@ -63,7 +63,8 @@ public class HacP2P {
 
     }
 
-    private void checkHeartbeats () {
+    private void routeMessages () {
+
         byte[] incomingData = new byte[1024];
 
         while (true) {
@@ -76,14 +77,28 @@ public class HacP2P {
                 System.out.println("Received packet from node: " + packet.getNodeID());
                 System.out.println("Containing data: " + new String(packet.getData()));
                 int port = incomingPacket.getPort();
-
                 System.out.println("Senders IP:" + peerIPs.get(packet.getNodeID()));
                 System.out.println("Senders port:" + port);
+
+                if (packet.getType() == HacPacket.TYPE_HEARTBEAT) {
+                   checkHeartbeats();
+                } else if (packet.getType() == HacPacket.TYPE_FILELIST) {
+                    System.out.println("Received file list");
+                } else if (packet.getType() == HacPacket.TYPE_FILEUPDATE) {
+                    System.out.println("Received file update");
+                } else if (packet.getType() == HacPacket.TYPE_FILEDELETE) {
+                    System.out.println("Received file delete");
+                }
 
             } catch (Exception e) {
                 e.printStackTrace();
             }
         }
+
+
+    }
+    private void checkHeartbeats () {
+
     }
 
 
