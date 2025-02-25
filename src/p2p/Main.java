@@ -14,9 +14,11 @@ public class Main {
             String command = scanner.nextLine();
 
             if (command.equalsIgnoreCase("send")) {
-                System.out.print("Enter peer IP address: ");
-                String peerIPAddress = scanner.nextLine();
-                peer.sendHomeDir(peerIPAddress); // ✅ Send file list when user enters 'send'
+                peer.sendHomeDir();
+            } else if (command.equalsIgnoreCase("delete")) {
+                System.out.print("Enter file name to delete: ");
+                String fileName = scanner.nextLine();
+                peer.deleteFile(fileName);
             } else if (command.equalsIgnoreCase("exit")) {
                 System.out.println("Exiting...");
                 break;

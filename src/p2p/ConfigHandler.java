@@ -6,19 +6,14 @@ import java.io.FileReader;
 import java.io.IOException;
 
 public class ConfigHandler {
-    public static void main(String[] args) {
-        {
-            Gson gson = new GsonBuilder().setPrettyPrinting().create();
+    public static Config loadConfig() {
+        Gson gson = new GsonBuilder().setPrettyPrinting().create();
 
-            try (FileReader reader = new FileReader("config.json")) {
-                Config config = gson.fromJson(reader, Config.class);
-
-                for (Config.Node node : config.getNodes()) {
-                    System.out.println("Node " + node.getId() + ": " + node.getIp() + ":" + node.getPort());
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+        try (FileReader reader = new FileReader("src/config.json")) { // ✅ Adjust path if needed
+            return gson.fromJson(reader, Config.class);
+        } catch (IOException e) {
+            e.printStackTrace();
+            return null;
         }
     }
 }
