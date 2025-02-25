@@ -81,7 +81,7 @@ public class HacP2P {
                 System.out.println("Senders port:" + port);
 
                 if (packet.getType() == HacPacket.TYPE_HEARTBEAT) {
-                   checkHeartbeats();
+                   checkHeartbeats(packet);
                 } else if (packet.getType() == HacPacket.TYPE_FILELIST) {
                     System.out.println("Received file list");
                 } else if (packet.getType() == HacPacket.TYPE_FILEUPDATE) {
@@ -97,7 +97,11 @@ public class HacP2P {
 
 
     }
-    private void checkHeartbeats () {
+    private void checkHeartbeats (HacPacket packet) {
+
+        if (packet.getType() == HacPacket.TYPE_HEARTBEAT) {
+            System.out.println("Received heartbeat from node: " + packet.getNodeID());
+        }
 
     }
 
