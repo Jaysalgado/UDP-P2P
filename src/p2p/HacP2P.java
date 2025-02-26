@@ -13,7 +13,7 @@ import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.io.IOException;
 import com.google.gson.Gson;
-
+import java.nio.ByteBuffer;
 
 public class HacP2P {
     private DatagramSocket sendSocket;
@@ -22,6 +22,7 @@ public class HacP2P {
     private final String pathToNodeHomeDir = System.getProperty("user.dir") + "/p2p_home";
     private List<Config.Node> peers;
     private final String myIP;
+    private final int selfNodeID;
     private final SecureRandom secureRandom = new SecureRandom();
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(10);
     // private final List<String> peerIPs = List.of("10.211.55.3", "10.111.150.70", "10.211.55.2"); // Add peer IPs here
@@ -31,6 +32,13 @@ public class HacP2P {
         this.port = port;
         this.myIP = myIP;
         this.peers = peers != null ? peers : new ArrayList<>();
+
+        this.selfNodeID = peers.stream()
+                .filter(node -> node.getIp().equals(myIP))
+                .map(Config.Node::getId)
+                .findFirst()
+                .orElse(-1);
+
         try {
             this.receiveSocket = new DatagramSocket(port);
             this.sendSocket = new DatagramSocket();
@@ -127,6 +135,10 @@ public class HacP2P {
                         break;
                     case HacPacket.TYPE_FILEDELETE:
                         System.out.println("Received file delete");
+                        break;
+                    case HacPacket.TYPE_FILETRANSFER:
+                        System.out.println("Received file transfer request.");
+                        receiveFile(packet);
                         break;
                     default:
                         System.out.println("Received unknown packet type.");
@@ -253,10 +265,20 @@ public class HacP2P {
     // Sends files
     public void sendFile(String peerIP, File file) {
         try {
-            byte[] fileData = Files.readAllBytes(file.toPath()); // Read file content
+            byte[] fileData = Files.readAllBytes(file.toPath());
+            byte[] fileNameBytes = file.getName().getBytes();
+
+            // Combine filename and file data into one array
+            ByteBuffer buffer = ByteBuffer.allocate(1 + fileNameBytes.length + fileData.length);
+            buffer.put((byte) fileNameBytes.length);
+            buffer.put(fileNameBytes);
+            buffer.put(fileData);
+            // Implement a method to get your node ID
+            HacPacket packet = new HacPacket(HacPacket.TYPE_FILETRANSFER, (short) selfNodeID, System.currentTimeMillis(), buffer.array());
+
             InetAddress address = InetAddress.getByName(peerIP);
-            DatagramPacket packet = new DatagramPacket(fileData, fileData.length, address, port);
-            sendSocket.send(packet);
+            DatagramPacket sendPacket = new DatagramPacket(packet.convertToBytes(), packet.convertToBytes().length, address, port);
+            sendSocket.send(sendPacket);
 
             System.out.println("Sent file: " + file.getName() + " to " + peerIP);
         } catch (IOException e) {
@@ -292,4 +314,29 @@ public class HacP2P {
             e.printStackTrace();
         }
     }
+
+    private void receiveFile(HacPacket packet) {
+        byte[] data = packet.getData();
+
+        if (data.length == 0) {
+            System.out.println("Received an empty file transfer packet.");
+            return;
+        }
+
+        int fileNameLength = data[0] & 0xFF;
+
+        String fileName = new String(data, 1, fileNameLength);
+
+        byte[] fileData = new byte[data.length - 1 - fileNameLength];
+        System.arraycopy(data, 1 + fileNameLength, fileData, 0, fileData.length);
+
+        File receivedFile = new File(pathToNodeHomeDir, fileName);
+        try {
+            Files.write(receivedFile.toPath(), fileData);
+            System.out.println("Received and saved file: " + fileName);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
 }
