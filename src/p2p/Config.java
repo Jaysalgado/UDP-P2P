@@ -3,9 +3,12 @@ package p2p;
 import java.util.List;
 
 public class Config {
-    private List<Node> nodes;
+    private String selfIP;
+    private List<Node> peers;
 
-    public List<Node> getNodes() { return nodes; }
+    public List<Node> getPeers() { return peers; }
+
+    public String getSelfIP() { return selfIP; }
 
     public static class Node {
         private int id;

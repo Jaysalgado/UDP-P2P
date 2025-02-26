@@ -1,6 +1,7 @@
 package p2p;
 
 import java.util.Scanner;
+import java.io.File;
 
 public class Main {
     public static void main(String[] args) {
@@ -15,11 +16,23 @@ public class Main {
             String command = readInputs.nextLine();
 
             if (command.equalsIgnoreCase("send")) {
+                peer.sendHomeDirectory();
                 System.out.print("File Directory sent.");
             } else if (command.equalsIgnoreCase("add")) {
                 System.out.print("Enter file path to add: ");
+                String filePath = readInputs.nextLine().trim();
+                File file = new File(filePath);
+                if (file.exists()) {
+                    peer.addFile(filePath);
+                    System.out.println("File added: " + filePath);
+                } else {
+                    System.out.println("Error: File does not exist.");
+                }
             } else if (command.equalsIgnoreCase("delete")) {
                 System.out.print("Enter file name to delete: ");
+                String fileName = readInputs.nextLine().trim();
+                peer.deleteFile(fileName);
+                System.out.println("Requested file deletion: " + fileName);
             } else if (command.equalsIgnoreCase("exit")) {
                 System.out.print("Exiting interface.");
                 break;

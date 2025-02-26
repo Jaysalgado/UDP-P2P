@@ -11,6 +11,7 @@ public class HacPacket {
     public static final byte TYPE_FILELIST = 0x04;
     public static final byte TYPE_FILEUPDATE = 0x05;
     public static final byte TYPE_FILEDELETE = 0x06;
+    public static final byte TYPE_FILETRANSFER = 0x07;
 
     private byte version;
     private byte type;
