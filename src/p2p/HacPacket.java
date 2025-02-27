@@ -55,8 +55,6 @@ public class HacPacket {
             throw new IllegalArgumentException("Packet too small: " + bytes.length + " bytes.");
         }
 
-        System.out.println("Decoded Packet - Type: " + type + ", NodeID: " + nodeID + ", Timestamp: " + timestamp + ", Data Length: " + length);
-
         byte version = buffer.get();
         byte type = buffer.get();
         short nodeID = buffer.getShort();
