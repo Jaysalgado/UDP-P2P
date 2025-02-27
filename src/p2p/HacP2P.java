@@ -141,6 +141,7 @@ public class HacP2P {
                 switch (packet.getType()) {
                     case HacPacket.TYPE_HEARTBEAT:
                         checkHeartbeats(packet);
+                        compareFileLists(packet);
                         break;
                     case HacPacket.TYPE_FILELIST:
                         System.out.println("Received file list");
