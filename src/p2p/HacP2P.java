@@ -57,8 +57,13 @@ public class HacP2P {
     }
 
     private void startHeartbeats ()  {
-        String message = "I am well";
-        byte[] data = message.getBytes();
+
+        List<String> allFileNames = retrieveDirItems();
+        List<String> filteredFileNames = allFileNames.stream()
+                .filter(fileName -> !fileName.equalsIgnoreCase("config.json"))
+                .toList();
+        String fileListJson = new Gson().toJson(filteredFileNames);
+        byte[] data = fileListJson.getBytes();
 
         for (Config.Node peer : peers) {
             String peerIP = peer.getIp();
@@ -112,7 +117,6 @@ public class HacP2P {
                 receiveSocket.receive(incomingPacket);
                 InetAddress senderIP = incomingPacket.getAddress();
 
-                System.out.println("Received raw data: " + Arrays.toString(incomingPacket.getData()));
                 if (incomingPacket.getLength() < 16) {
                     System.out.println("Received packet is too small: " + incomingPacket.getLength() + " bytes. Ignoring.");
                     return;
@@ -268,6 +272,9 @@ public class HacP2P {
             byte[] packetBytes = packet.convertToBytes();
 
             for (Config.Node node : peers) {
+                if (node.getIp().equals(myIP)) {
+                    continue;
+                }
                 InetAddress address = InetAddress.getByName(node.getIp());
                 DatagramPacket sendPacket = new DatagramPacket(packetBytes, packetBytes.length, address, port);
                 sendSocket.send(sendPacket);
