@@ -3,6 +3,7 @@ package p2p;
 import java.net.*;
 import java.net.DatagramSocket;
 import java.security.SecureRandom;
+import java.util.HashMap;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -26,6 +27,8 @@ public class HacP2P {
     private final int selfNodeID;
     private final SecureRandom secureRandom = new SecureRandom();
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(10);
+    private HashMap<Integer, String> activePeers = new HashMap<>();
+    private HashMap<Integer, Long> lastHeartbeat = new HashMap<>();
 
     public HacP2P (int port, List<Config.Node> peers, String myIP){
         this.port = port;
@@ -50,6 +53,7 @@ public class HacP2P {
     public void activateHac () {
         new Thread (this::startHeartbeats).start();
         new Thread(this::routeMessages).start();
+        scheduler.scheduleAtFixedRate(this::isAlive, 10, 30, TimeUnit.SECONDS);
     }
 
     private void startHeartbeats ()  {
@@ -65,6 +69,7 @@ public class HacP2P {
             int interval = secureRandom.nextInt(31) + 1;      // Random interval (1-31 sec)
             System.out.println("Sending heartbeats to " + peerIP + " every " + interval + " seconds");
             scheduler.scheduleAtFixedRate(() -> sendHeartbeats(peerIP, data), 0, interval, TimeUnit.SECONDS);
+
         }
 
     }
@@ -165,8 +170,18 @@ public class HacP2P {
     }
 
     private void checkHeartbeats (HacPacket packet) {
-        if (packet.getType() == HacPacket.TYPE_HEARTBEAT) {
-            System.out.println("Received heartbeat from node: " + packet.getNodeID());
+        System.out.println("Received heartbeat from node: " + packet.getNodeID());
+        activePeers.put((int) packet.getNodeID(), "ACTIVE");
+        lastHeartbeat.put((int) packet.getNodeID(), System.currentTimeMillis());
+    }
+
+    private void isAlive () {
+        long currentTime = System.currentTimeMillis();
+        for (int nodeID : lastHeartbeat.keySet()) {
+            if (currentTime - lastHeartbeat.get(nodeID) > 31000) {
+                System.out.println("Node " + nodeID + " is inactive.");
+                activePeers.put(nodeID, "INACTIVE");
+            }
         }
     }
 
