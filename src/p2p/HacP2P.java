@@ -239,14 +239,26 @@ public class HacP2P {
             return;
         }
 
+        List<String> filteredFileNames = allFileNames.stream()
+                .filter(fileName -> !fileName.equalsIgnoreCase("config.json"))
+                .toList();
+
+        if (filteredFileNames.isEmpty()) {
+            System.out.println("No files aside from config.json present.");
+            return;
+        }
+
         try {
             String fileListJson = new Gson().toJson(allFileNames);
             byte[] data = fileListJson.getBytes();
 
+            HacPacket packet = new HacPacket(HacPacket.TYPE_FILELIST, (short) selfNodeID, System.currentTimeMillis(), data);
+            byte[] packetBytes = packet.convertToBytes();
+
             for (Config.Node node : peers) {
                 InetAddress address = InetAddress.getByName(node.getIp());
-                DatagramPacket packet = new DatagramPacket(data, data.length, address, port);
-                sendSocket.send(packet);
+                DatagramPacket sendPacket = new DatagramPacket(packetBytes, packetBytes.length, address, port);
+                sendSocket.send(sendPacket);
                 System.out.println("Sent file list to: " + node.getIp());
             }
         } catch (IOException e) {
