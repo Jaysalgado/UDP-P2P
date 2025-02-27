@@ -5,6 +5,7 @@ import java.net.DatagramSocket;
 import java.security.SecureRandom;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -105,7 +106,17 @@ public class HacP2P {
                 DatagramPacket incomingPacket = new DatagramPacket(incomingData, incomingData.length);
                 receiveSocket.receive(incomingPacket);
                 InetAddress senderIP = incomingPacket.getAddress();
+
+                System.out.println("Received raw data: " + Arrays.toString(incomingPacket.getData()));
+                if (incomingPacket.getLength() < 16) {
+                    System.out.println("Received packet is too small: " + incomingPacket.getLength() + " bytes. Ignoring.");
+                    return;
+                }
+
                 HacPacket packet = HacPacket.convertFromBytes(incomingPacket.getData());
+
+                System.out.println("Received packet size: " + incomingPacket.getLength() + " bytes");
+                System.out.println("Raw packet data: " + Arrays.toString(incomingPacket.getData()));
 
                 System.out.println("Received packet from node ID: " + packet.getNodeID());
                 System.out.println("Containing data: " + new String(packet.getData()));
