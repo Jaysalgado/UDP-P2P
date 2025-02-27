@@ -9,7 +9,7 @@ public class ConfigHandler {
     public static Config loadConfig() {
         Gson gson = new GsonBuilder().setPrettyPrinting().create();
 
-        try (FileReader readingFile = new FileReader("src/config.json")) {
+        try (FileReader readingFile = new FileReader("p2p_home/config.json")) {
             return gson.fromJson(readingFile, Config.class);
         } catch (IOException e) {
             e.printStackTrace();
