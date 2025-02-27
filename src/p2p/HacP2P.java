@@ -115,9 +115,6 @@ public class HacP2P {
 
                 HacPacket packet = HacPacket.convertFromBytes(incomingPacket.getData());
 
-                System.out.println("Received packet size: " + incomingPacket.getLength() + " bytes");
-                System.out.println("Raw packet data: " + Arrays.toString(incomingPacket.getData()));
-
                 System.out.println("Received packet from node ID: " + packet.getNodeID());
                 System.out.println("Containing data: " + new String(packet.getData()));
 
@@ -281,6 +278,7 @@ public class HacP2P {
 
         for (String fileName : receivedFileList) {
             if (!localFiles.contains(fileName)) {
+                System.out.println("Missing file detected: " + fileName + " - Requesting from Node " + packet.getNodeID());
                 requestFile(packet.getNodeID(), fileName);
             }
         }
@@ -315,9 +313,13 @@ public class HacP2P {
             String message = "REQUEST:" + fileName;
             byte[] data = message.getBytes();
 
+            System.out.println("Preparing to send file request for: " + fileName + " to node " + nodeID);
+
             InetAddress address = InetAddress.getByName(peers.get(nodeID).getIp());
             DatagramPacket packet = new DatagramPacket(data, data.length, address, port);
             sendSocket.send(packet);
+
+            System.out.println("File request successfully sent for: " + fileName + " to " + peers.get(nodeID).getIp());
 
             System.out.println("Requested file: " + fileName + " from node " + nodeID);
         } catch (IOException e) {
