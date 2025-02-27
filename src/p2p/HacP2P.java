@@ -25,8 +25,6 @@ public class HacP2P {
     private final int selfNodeID;
     private final SecureRandom secureRandom = new SecureRandom();
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(10);
-    // private final List<String> peerIPs = List.of("10.211.55.3", "10.111.150.70", "10.211.55.2"); // Add peer IPs here
-    // String myIP = "10.211.55.2";
 
     public HacP2P (int port, List<Config.Node> peers, String myIP){
         this.port = port;
@@ -129,6 +127,7 @@ public class HacP2P {
                         break;
                     case HacPacket.TYPE_FILELIST:
                         System.out.println("Received file list");
+                        compareFileLists(packet);
                         break;
                     case HacPacket.TYPE_FILEUPDATE:
                         System.out.println("Received file update");
@@ -138,6 +137,13 @@ public class HacP2P {
                         break;
                     case HacPacket.TYPE_FILETRANSFER:
                         System.out.println("Received file transfer request.");
+                        String dataString = new String(packet.getData());
+                        if (dataString.startsWith("REQUEST:")) {
+                            String fileName = dataString.substring(8);
+                            sendFile(senderIP.getHostAddress(), new File(pathToNodeHomeDir, fileName));
+                        } else {
+                            receiveFile(packet);
+                        }
                         receiveFile(packet);
                         break;
                     default:
@@ -188,31 +194,6 @@ public class HacP2P {
         return fileNames;
     }
 
-    // Sends the list of items in the home directory to all peers
-    public void sendHomeDir() {
-        List<String> allFileNames = retrieveDirItems();
-
-        if (allFileNames.isEmpty()) {
-            System.out.println("There is nothing in the home directory.");
-            return;
-        }
-
-        if (peers.isEmpty()) {
-            System.out.println("No peers found in config.json.");
-            return;
-        }
-
-        for (Config.Node node : peers) {
-            sendFileList(node.getIp(), allFileNames);
-            System.out.println("Sent file list to " + node.getIp() + ":" + node.getPort());
-
-            for (String fileName : allFileNames) {
-                File file = new File(pathToNodeHomeDir, fileName);
-                sendFile(node.getIp(), file);
-            }
-        }
-    }
-
     // Adds a file to the home directory
     public void addFile(File file) {
         File destFile = new File(pathToNodeHomeDir, file.getName());
@@ -226,7 +207,7 @@ public class HacP2P {
             Files.copy(file.toPath(), destFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
             System.out.println("File added: " + destFile.getAbsolutePath());
 
-            sendHomeDir();
+            sendFileList();
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -243,22 +224,31 @@ public class HacP2P {
 
         if (file.delete()) {
             System.out.println("File deleted: " + fileName);
-            notifyPeersFileDeleted(fileName);
+            broadcastFileDeletion(fileName);
         } else {
             System.out.println("Failed to delete file: " + fileName);
         }
     }
 
     // Notifies peers that a file was deleted
-    private void notifyPeersFileDeleted(String fileName) {
+    private void broadcastFileDeletion(String fileName) {
         if (peers.isEmpty()) {
             System.out.println("No peers found in config.json.");
             return;
         }
 
-        for (Config.Node node : peers) {
-            sendFileDeletion(node.getIp(), fileName);
-            System.out.println("Notified " + node.getIp() + " about deleted file: " + fileName);
+        try {
+            String message = "DELETE:" + fileName;
+            byte[] data = message.getBytes();
+
+            for (Config.Node node : peers) {
+                InetAddress address = InetAddress.getByName(node.getIp());
+                DatagramPacket packet = new DatagramPacket(data, data.length, address, port);
+                sendSocket.send(packet);
+                System.out.println("Notified " + node.getIp() + " about deleted file: " + fileName);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 
@@ -268,12 +258,11 @@ public class HacP2P {
             byte[] fileData = Files.readAllBytes(file.toPath());
             byte[] fileNameBytes = file.getName().getBytes();
 
-            // Combine filename and file data into one array
             ByteBuffer buffer = ByteBuffer.allocate(1 + fileNameBytes.length + fileData.length);
             buffer.put((byte) fileNameBytes.length);
             buffer.put(fileNameBytes);
             buffer.put(fileData);
-            // Implement a method to get your node ID
+
             HacPacket packet = new HacPacket(HacPacket.TYPE_FILETRANSFER, (short) selfNodeID, System.currentTimeMillis(), buffer.array());
 
             InetAddress address = InetAddress.getByName(peerIP);
@@ -286,30 +275,31 @@ public class HacP2P {
         }
     }
 
-    public void sendFileDeletion(String peerIP, String fileName) {
-        try {
-            String message = "DELETE:" + fileName;
-            byte[] data = message.getBytes();
-            InetAddress address = InetAddress.getByName(peerIP);
-            DatagramPacket packet = new DatagramPacket(data, data.length, address, port);
-            sendSocket.send(packet);
 
-            System.out.println("Notified " + peerIP + " about deleted file: " + fileName);
-        } catch (IOException e) {
-            e.printStackTrace();
+    // Sends file list for comparison
+    public void sendFileList() {
+        List<String> allFileNames = retrieveDirItems();
+
+        if (allFileNames.isEmpty()) {
+            System.out.println("There is nothing in the home directory.");
+            return;
         }
-    }
 
-    public void sendFileList(String peerIP, List<String> fileList) {
+        if (peers.isEmpty()) {
+            System.out.println("No peers found in config.json.");
+            return;
+        }
+
         try {
-            String fileListJson = new Gson().toJson(fileList);  // Convert file list to JSON
+            String fileListJson = new Gson().toJson(allFileNames);
             byte[] data = fileListJson.getBytes();
 
-            InetAddress address = InetAddress.getByName(peerIP);
-            DatagramPacket packet = new DatagramPacket(data, data.length, address, port);
-            sendSocket.send(packet);  // Send the JSON metadata
-
-            System.out.println("Sent file list to: " + peerIP);
+            for (Config.Node node : peers) {
+                InetAddress address = InetAddress.getByName(node.getIp());
+                DatagramPacket packet = new DatagramPacket(data, data.length, address, port);
+                sendSocket.send(packet);
+                System.out.println("Sent file list to: " + node.getIp());
+            }
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -324,7 +314,6 @@ public class HacP2P {
         }
 
         int fileNameLength = data[0] & 0xFF;
-
         String fileName = new String(data, 1, fileNameLength);
 
         byte[] fileData = new byte[data.length - 1 - fileNameLength];
@@ -339,4 +328,37 @@ public class HacP2P {
         }
     }
 
+    private void compareFileLists(HacPacket packet) {
+        byte[] data = packet.getData();
+        if (data.length == 0) {
+            System.out.println("Received an empty file list.");
+            return;
+        }
+
+        String jsonString = new String(data);
+        List<String> receivedFileList = new Gson().fromJson(jsonString, List.class);
+
+        List<String> localFiles = retrieveDirItems();
+
+        for (String fileName : receivedFileList) {
+            if (!localFiles.contains(fileName)) {
+                requestFile(packet.getNodeID(), fileName);
+            }
+        }
+    }
+
+    private void requestFile(int nodeID, String fileName) {
+        try {
+            String message = "REQUEST:" + fileName;
+            byte[] data = message.getBytes();
+
+            InetAddress address = InetAddress.getByName(peers.get(nodeID).getIp());
+            DatagramPacket packet = new DatagramPacket(data, data.length, address, port);
+            sendSocket.send(packet);
+
+            System.out.println("Requested file: " + fileName + " from node " + nodeID);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 }

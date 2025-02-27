@@ -36,7 +36,7 @@ public class Peer {
     }
 
     public void sendHomeDirectory() {
-        hac.sendHomeDir();
+        hac.sendFileList();
     }
 
     public List<String> listFiles() {
