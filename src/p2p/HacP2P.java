@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.io.File;
 import java.nio.file.Files;
@@ -27,6 +28,7 @@ public class HacP2P {
     private final int selfNodeID;
     private final SecureRandom secureRandom = new SecureRandom();
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(10);
+    private ExecutorService messageHandlerPool = Executors.newFixedThreadPool(6);
     private HashMap<Integer, String> activePeers = new HashMap<>();
     private HashMap<Integer, Long> lastHeartbeat = new HashMap<>();
 
@@ -52,7 +54,7 @@ public class HacP2P {
 
     public void activateHac () {
         new Thread (this::startHeartbeats).start();
-        new Thread(this::routeMessages).start();
+        new Thread(this::listen).start();
         scheduler.scheduleAtFixedRate(this::isAlive, 10, 30, TimeUnit.SECONDS);
     }
 
@@ -108,13 +110,28 @@ public class HacP2P {
         }
     }
 
-    private void routeMessages () {
+    private void listen () {
+
         byte[] incomingData = new byte[1024];
 
         while (true) {
             try {
                 DatagramPacket incomingPacket = new DatagramPacket(incomingData, incomingData.length);
                 receiveSocket.receive(incomingPacket);
+
+                // Submit task to thread pool for processing
+                messageHandlerPool.submit(() -> routeMessages(incomingPacket));
+
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+    }
+    private void routeMessages (DatagramPacket incomingPacket) {
+
+            try {
+
                 InetAddress senderIP = incomingPacket.getAddress();
 
                 if (incomingPacket.getLength() < 16) {
@@ -171,7 +188,6 @@ public class HacP2P {
             } catch (Exception e) {
                 e.printStackTrace();
             }
-        }
     }
 
     private void checkHeartbeats (HacPacket packet) {
