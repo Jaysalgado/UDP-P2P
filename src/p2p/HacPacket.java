@@ -2,6 +2,8 @@ package p2p;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.BufferUnderflowException;
+
 
 public class HacPacket {
     public static final byte VERSION_NUM = 1;
@@ -48,28 +50,43 @@ public class HacPacket {
     }
 
     public static HacPacket convertFromBytes(byte[] bytes) {
+        if (bytes == null || bytes.length < 16) {
+            System.out.println("Error: Received an incomplete or empty packet (size: " + (bytes == null ? 0 : bytes.length) + "). Ignoring.");
+            return null;
+        }
+
         ByteBuffer buffer = ByteBuffer.wrap(bytes);
         buffer.order(ByteOrder.BIG_ENDIAN);
 
-        if (bytes.length < 16) {
-            throw new IllegalArgumentException("Packet too small: " + bytes.length + " bytes.");
+        try {
+            byte version = buffer.get();
+            byte type = buffer.get();
+            short nodeID = buffer.getShort();
+            long timeHigh = buffer.getInt() & 0xFFFFFFFFL;
+            long timeLow = buffer.getInt() & 0xFFFFFFFFL;
+            long timestamp = (timeHigh << 32) | timeLow;
+            int length = buffer.getInt();
+
+            // **Check if the packet length is valid**
+            if (length < 0 || length > (bytes.length - 16)) {
+                System.out.println("Error: Malformed packet with invalid data length (" + length + "). Ignoring.");
+                return null;
+            }
+
+            byte[] data = new byte[length];
+            if (length > 0) {
+                buffer.get(data);
+            }
+
+            return new HacPacket(type, nodeID, timestamp, data);
+
+        } catch (BufferUnderflowException e) {
+            System.out.println("Critical Error: Packet parsing failed due to missing bytes. Packet might be corrupted.");
+            e.printStackTrace();
+            return null;
         }
-
-        byte version = buffer.get();
-        byte type = buffer.get();
-        short nodeID = buffer.getShort();
-        long timeHigh = buffer.getInt() & 0xFFFFFFFFL;
-        long timeLow = buffer.getInt() & 0xFFFFFFFFL;
-        long timestamp = (timeHigh << 32) | timeLow;
-        int length = buffer.getInt();
-
-        byte[] data = new byte[length];
-        if (length > 0) {
-            buffer.get(data);
-        }
-
-        return new HacPacket(type, nodeID, timestamp, data);
     }
+
 
     public String printInfo() {
         return "Protocol{" +
@@ -100,8 +117,5 @@ public class HacPacket {
     public byte[] getData() {
         return data;
     }
-
-
-
 
 }

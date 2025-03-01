@@ -4,6 +4,8 @@ import java.net.*;
 import java.net.DatagramSocket;
 import java.security.SecureRandom;
 import java.util.HashMap;
+import java.util.Set;
+import java.util.HashSet;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -28,6 +30,7 @@ public class HacP2P {
     private final int selfNodeID;
     private final SecureRandom secureRandom = new SecureRandom();
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(10);
+    private final Set<String> recentlyBroadcastedFiles = new HashSet<>();
     private ExecutorService messageHandlerPool = Executors.newFixedThreadPool(6);
     private HashMap<Integer, String> activePeers = new HashMap<>();
     private HashMap<Integer, Long> lastHeartbeat = new HashMap<>();
@@ -59,7 +62,6 @@ public class HacP2P {
     }
 
     private void startHeartbeats ()  {
-
         List<String> allFileNames = retrieveDirItems();
         List<String> filteredFileNames = allFileNames.stream()
                 .filter(fileName -> !fileName.equalsIgnoreCase("config.json"))
@@ -302,7 +304,6 @@ public class HacP2P {
         }
     }
 
-    // Allows a node to compare the file list it receives with its own file list and send a request for missing files.
     private void compareFileLists(HacPacket packet) {
         byte[] data = packet.getData();
         if (data.length == 0) {
@@ -312,36 +313,76 @@ public class HacP2P {
 
         String jsonString = new String(data);
         List<String> receivedFileList = new Gson().fromJson(jsonString, List.class);
-
         List<String> localFiles = retrieveDirItems();
 
+        List<String> filesToDownload = new ArrayList<>();
+        List<String> filesToBroadcast = new ArrayList<>();
+        List<String> filesToDelete = new ArrayList<>();
+
+        // Identify new files that exist locally but not in the received list (need to be broadcasted)
+        for (String fileName : localFiles) {
+            if (!fileName.equalsIgnoreCase("config.json") && !receivedFileList.contains(fileName)) {
+                System.out.println("New file detected: " + fileName + " - Broadcasting update to peers.");
+                filesToBroadcast.add(fileName);
+                recentlyBroadcastedFiles.add(fileName);
+            }
+        }
+
+        // Identify missing files that need to be downloaded
         for (String fileName : receivedFileList) {
             if (!localFiles.contains(fileName)) {
                 System.out.println("Missing file detected: " + fileName + " - Requesting from Node " + packet.getNodeID());
-                requestFile(packet.getNodeID(), fileName);
+                filesToDownload.add(fileName);
             }
+        }
+
+        // Request missing files before considering deletion
+        for (String fileName : filesToDownload) {
+            requestFile(packet.getNodeID(), fileName);
+        }
+
+        // Send updated directory to all peers if new files were detected
+        if (!filesToBroadcast.isEmpty()) {
+            sendFileList();
+            return; // Ensures deletion does not happen before peers update
+        }
+
+        // Identify extra files that need to be deleted (excluding config.json), but only if they were not broadcasted
+        for (String fileName : localFiles) {
+            if (!receivedFileList.contains(fileName) && !fileName.equalsIgnoreCase("config.json") && !recentlyBroadcastedFiles.contains(fileName)) {
+                System.out.println("Extra file detected: " + fileName + " - Marking for deletion.");
+                filesToDelete.add(fileName);
+            }
+        }
+
+        // Delete extra files after ensuring all updates are processed
+        for (String fileName : filesToDelete) {
+            deleteFile(fileName);
         }
     }
 
     // Method to read a file, use HacPacket to transform it into a message and send it to the node that requires it.
     public void sendFile(String peerIP, File file) {
+        if (!file.exists()) {
+            System.out.println("Error: File does not exist on this node. Cannot send: " + file.getName());
+            return;
+        }
+
         try {
-            byte[] fileData = Files.readAllBytes(file.toPath());
-            byte[] fileNameBytes = file.getName().getBytes();
+            byte[] fileData = Files.readAllBytes(file.toPath()); // Read the file content
+            byte[] data = ("FILE:" + file.getName() + ":" + new String(fileData)).getBytes(); // Package as a string
 
-            ByteBuffer buffer = ByteBuffer.allocate(1 + fileNameBytes.length + fileData.length);
-            buffer.put((byte) fileNameBytes.length);
-            buffer.put(fileNameBytes);
-            buffer.put(fileData);
-
-            HacPacket packet = new HacPacket(HacPacket.TYPE_FILETRANSFER, (short) selfNodeID, System.currentTimeMillis(), buffer.array());
+            HacPacket packet = new HacPacket(HacPacket.TYPE_FILETRANSFER, (short) selfNodeID, System.currentTimeMillis(), data);
+            byte[] packetBytes = packet.convertToBytes();
 
             InetAddress address = InetAddress.getByName(peerIP);
-            DatagramPacket sendPacket = new DatagramPacket(packet.convertToBytes(), packet.convertToBytes().length, address, port);
+            DatagramPacket sendPacket = new DatagramPacket(packetBytes, packetBytes.length, address, port);
             sendSocket.send(sendPacket);
 
             System.out.println("Sent file: " + file.getName() + " to " + peerIP);
+
         } catch (IOException e) {
+            System.out.println("Error sending file: " + file.getName());
             e.printStackTrace();
         }
     }
@@ -369,23 +410,28 @@ public class HacP2P {
     // Method to extract received file and save it right into the home directory.
     private void receiveFile(HacPacket packet) {
         byte[] data = packet.getData();
+        String receivedString = new String(data);
 
-        if (data.length == 0) {
-            System.out.println("Received an empty file transfer packet.");
+        if (!receivedString.startsWith("FILE:")) {
+            System.out.println("Error: Received malformed file packet.");
             return;
         }
 
-        int fileNameLength = data[0] & 0xFF;
-        String fileName = new String(data, 1, fileNameLength);
+        String[] parts = receivedString.split(":", 3);
+        if (parts.length < 3) {
+            System.out.println("Error: File packet format incorrect.");
+            return;
+        }
 
-        byte[] fileData = new byte[data.length - 1 - fileNameLength];
-        System.arraycopy(data, 1 + fileNameLength, fileData, 0, fileData.length);
+        String fileName = parts[1];
+        byte[] fileData = parts[2].getBytes();
 
         File receivedFile = new File(pathToNodeHomeDir, fileName);
         try {
             Files.write(receivedFile.toPath(), fileData);
-            System.out.println("Received and saved file: " + fileName);
+            System.out.println("Successfully received and saved file: " + fileName);
         } catch (IOException e) {
+            System.out.println("Error writing received file: " + fileName);
             e.printStackTrace();
         }
     }
