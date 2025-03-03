@@ -134,9 +134,6 @@ public class HacP2P {
         try {
             InetAddress senderIP = incomingPacket.getAddress();
 
-            // Log received packet size
-            System.out.println("Received raw packet length: " + incomingPacket.getLength());
-
             if (incomingPacket.getLength() < 16) {
                 System.out.println("Error: Received packet is too small (" + incomingPacket.getLength() + " bytes). Ignoring.");
                 return;
@@ -144,20 +141,13 @@ public class HacP2P {
 
             // Extract raw bytes and log them
             byte[] receivedBytes = Arrays.copyOf(incomingPacket.getData(), incomingPacket.getLength());
-            System.out.println("Raw Packet Data: " + Arrays.toString(receivedBytes));
 
             // Convert to HacPacket
             HacPacket packet = HacPacket.convertFromBytes(receivedBytes);
             if (packet == null) {
-                System.out.println("Error: Packet conversion failed. Corrupt data?");
+                System.out.println("Error: Packet conversion failed. Data may be corrupt.");
                 return;
             }
-
-            System.out.println("✅ Successfully parsed packet!");
-            System.out.println("Received packet from node ID: " + packet.getNodeID());
-            System.out.println("Packet Type: " + packet.getType());
-            System.out.println("Packet Length: " + packet.getLength());
-            System.out.println("Packet Timestamp: " + packet.getTimestamp());
 
             int senderPort = incomingPacket.getPort();
 
@@ -166,7 +156,7 @@ public class HacP2P {
                 System.out.println("Sender's IP: " + peers.get(packet.getNodeID()).getIp());
                 System.out.println("Sender's Port: " + senderPort);
             } else {
-                System.out.println("❌ Unknown sender ID: " + packet.getNodeID());
+                System.out.println("Packet received from unknown: " + packet.getNodeID());
             }
 
             // Handle different packet types
@@ -177,47 +167,45 @@ public class HacP2P {
                     break;
 
                 case HacPacket.TYPE_FILELIST:
-                    System.out.println("📂 Received file list from node " + packet.getNodeID());
+                    System.out.println("Received file list from node " + packet.getNodeID());
                     compareFileLists(packet);
                     break;
 
                 case HacPacket.TYPE_FILEUPDATE:
-                    System.out.println("📄 Received file update request.");
+                    System.out.println("Received file update request.");
                     break;
 
                 case HacPacket.TYPE_FILEDELETE:
-                    System.out.println("🗑️ Received file delete request.");
+                    System.out.println("Received file delete request.");
 
-                    // Convert the raw packet data to a string (UTF-8)
                     String deleteDataString = new String(packet.getData(), java.nio.charset.StandardCharsets.UTF_8);
 
-                    // Extract the file name (assuming message is "DELETE:someFileName")
                     String fileToDelete = deleteDataString.substring("DELETE:".length()).trim();
                     deleteFile(fileToDelete);
                     break;
 
                 case HacPacket.TYPE_FILETRANSFER:
-                    System.out.println("📦 Received file transfer packet.");
+                    System.out.println("Received file transfer packet.");
                     String transferDataString = new String(packet.getData());
 
                     // If it's a request for a file
                     if (transferDataString.startsWith("REQUEST:")) {
                         String fileName = transferDataString.substring(8).trim();
-                        System.out.println("🛜 File request received for: " + fileName);
+                        System.out.println("File request received for: " + fileName);
                         sendFile(senderIP.getHostAddress(), new File(pathToNodeHomeDir, fileName));
                     } else {
-                        System.out.println("⬇️ Receiving actual file data...");
+                        System.out.println("Receiving actual file data...");
                         receiveFile(packet);
                     }
                     break;
 
                 default:
-                    System.out.println("⚠️ Received unknown packet type: " + packet.getType());
+                    System.out.println("Received unknown packet type: " + packet.getType());
                     break;
             }
 
         } catch (Exception e) {
-            System.out.println("❌ Error processing incoming packet.");
+            System.out.println("Unable to process incoming packet.");
             e.printStackTrace();
         }
     }
@@ -244,7 +232,7 @@ public class HacP2P {
         File file = new File(pathToNodeHomeDir);
         if (!file.exists()) {
             file.mkdirs();
-            System.out.println("Home directory not detected. Created: " + pathToNodeHomeDir);
+            System.out.println("Home directory not detected. Created in: " + pathToNodeHomeDir);
         }
     }
 
@@ -291,7 +279,7 @@ public class HacP2P {
         }
     }
 
-    // Retrieves the file list for that specific node, converts it to a JSON and sends it to all connected nodes.
+    // Retrieves the file list for that specific node.
     public void sendFileList() {
         List<String> allFileNames = retrieveDirItems();
 
@@ -335,6 +323,8 @@ public class HacP2P {
         }
     }
 
+    // Method that enables a node to compare its own file list with a peers in order to determine what to send and what
+    // to delete. We specifically identify new files that exist locally but do not exist in a cached "received" file list.
     private void compareFileLists(HacPacket packet) {
         byte[] data = packet.getData();
         if (data.length == 0) {
@@ -350,7 +340,6 @@ public class HacP2P {
         List<String> filesToBroadcast = new ArrayList<>();
         List<String> filesToDelete = new ArrayList<>();
 
-        // Identify new files that exist locally but not in the received list (need to be broadcasted)
         for (String fileName : localFiles) {
             if (!fileName.equalsIgnoreCase("config.json") && !receivedFileList.contains(fileName)) {
                 System.out.println("New file detected: " + fileName + " - Broadcasting update to peers.");
@@ -359,7 +348,6 @@ public class HacP2P {
             }
         }
 
-        // Identify missing files that need to be downloaded
         for (String fileName : receivedFileList) {
             if (!localFiles.contains(fileName)) {
                 System.out.println("Missing file detected: " + fileName + " - Requesting from Node " + packet.getNodeID());
@@ -367,18 +355,15 @@ public class HacP2P {
             }
         }
 
-        // Request missing files before considering deletion
         for (String fileName : filesToDownload) {
             requestFile(packet.getNodeID(), fileName);
         }
 
-        // Send updated directory to all peers if new files were detected
         if (!filesToBroadcast.isEmpty()) {
             sendFileList();
-            return; // Ensures deletion does not happen before peers update
+            return;
         }
 
-        // Identify extra files that need to be deleted (excluding config.json), but only if they were not broadcasted
         for (String fileName : localFiles) {
             if (!receivedFileList.contains(fileName) && !fileName.equalsIgnoreCase("config.json") && !recentlyBroadcastedFiles.contains(fileName)) {
                 System.out.println("Extra file detected: " + fileName + " - Marking for deletion.");
@@ -386,13 +371,12 @@ public class HacP2P {
             }
         }
 
-        // Delete extra files after ensuring all updates are processed
         for (String fileName : filesToDelete) {
             deleteFile(fileName);
         }
     }
 
-    // Method to read a file, use HacPacket to transform it into a message and send it to the node that requires it.
+    // Method to read a file, wrap it properly in a HacPacket and send the package to the node requesting it.
     public void sendFile(String peerIP, File file) {
         if (!file.exists()) {
             System.out.println("Error: File does not exist on this node. Cannot send: " + file.getName());
@@ -400,57 +384,45 @@ public class HacP2P {
         }
 
         try {
-            byte[] fileData = Files.readAllBytes(file.toPath());  // Read the file content
-            byte[] fileNameBytes = file.getName().getBytes();      // Convert file name to bytes
+            byte[] fileData = Files.readAllBytes(file.toPath());
+            byte[] fileNameBytes = file.getName().getBytes();
 
             if (fileData.length == 0) {
                 System.out.println("Warning: Sending empty file -> " + file.getName());
-                fileData = new byte[]{0};  // Send a single zero-byte for empty files
+                fileData = new byte[]{0};
             }
 
-            // **Allocate exact buffer size**
             int totalSize = 1 + fileNameBytes.length + fileData.length;
             ByteBuffer buffer = ByteBuffer.allocate(totalSize);
             buffer.put((byte) fileNameBytes.length);
             buffer.put(fileNameBytes);
             buffer.put(fileData);
 
-            // **Extract correctly sized byte array**
-            byte[] finalPacketData = new byte[buffer.position()]; // Trim unused space
+            byte[] finalPacketData = new byte[buffer.position()];
             buffer.rewind();
             buffer.get(finalPacketData);
 
-            // **Create HacPacket with correct length**
             HacPacket packet = new HacPacket(HacPacket.TYPE_FILETRANSFER, (short) selfNodeID, System.currentTimeMillis(), finalPacketData);
 
-            // **Debugging output**
-            System.out.println("Sending file: " + file.getName() + " | File Size: " + fileData.length + " bytes");
-            System.out.println("Final Packet Size: " + finalPacketData.length);
-            System.out.println("Packet Bytes Sent: " + Arrays.toString(packet.convertToBytes()));
-
-            // **Send the packet over UDP**
             InetAddress address = InetAddress.getByName(peerIP);
             byte[] packetBytes = packet.convertToBytes();
             DatagramPacket sendPacket = new DatagramPacket(packetBytes, packetBytes.length, address, port);
             sendSocket.send(sendPacket);
 
-            System.out.println("✅ Successfully sent file: " + file.getName() + " to " + peerIP);
+            System.out.println("Successfully sent file: " + file.getName() + " to " + peerIP);
 
         } catch (IOException e) {
-            System.out.println("❌ Error sending file: " + file.getName());
+            System.out.println("Error sending file: " + file.getName());
             e.printStackTrace();
         }
     }
 
-    // Method for requesting the appropriate file from an appropriate node.
+    // Method for requesting the correct file from a node.
     private void requestFile(int nodeID, String fileName) {
         try {
-            // Build the request string
             String message = "REQUEST:" + fileName;
-            // Convert to bytes with a fixed charset
             byte[] requestData = message.getBytes(java.nio.charset.StandardCharsets.UTF_8);
 
-            // Create a HacPacket of type FILETRANSFER with the request data
             HacPacket requestPacket = new HacPacket(
                     HacPacket.TYPE_FILETRANSFER,
                     (short) selfNodeID,
@@ -458,16 +430,12 @@ public class HacP2P {
                     requestData
             );
 
-            // Convert HacPacket to raw bytes
             byte[] packetBytes = requestPacket.convertToBytes();
 
-            // Retrieve peer’s IP and send
             InetAddress address = InetAddress.getByName(peers.get(nodeID).getIp());
             DatagramPacket sendPacket = new DatagramPacket(packetBytes, packetBytes.length, address, port);
             sendSocket.send(sendPacket);
 
-            // Log success
-            System.out.println("Preparing to send file request for: " + fileName + " to node " + nodeID);
             System.out.println("File request successfully sent for: " + fileName + " to " + peers.get(nodeID).getIp());
             System.out.println("Requested file: " + fileName + " from node " + nodeID);
         } catch (IOException e) {
@@ -476,7 +444,7 @@ public class HacP2P {
     }
 
 
-    // Method to extract received file and save it right into the home directory.
+    // Method to handle the requested file and save it to the home directory.
     private void receiveFile(HacPacket packet) {
         byte[] data = packet.getData();
 
@@ -485,19 +453,15 @@ public class HacP2P {
             return;
         }
 
-        System.out.println("Raw File Data Received: " + Arrays.toString(data));
-
         int fileNameLength = data[0] & 0xFF;
         if (data.length < 1 + fileNameLength) {
             System.out.println("Error: Packet corrupted. File name length exceeds packet size.");
             return;
         }
 
-        // **Extract the filename**
         String fileName = new String(data, 1, fileNameLength);
         System.out.println("Receiving file: " + fileName);
 
-        // **Extract file data**
         byte[] fileData = new byte[data.length - 1 - fileNameLength];
         System.arraycopy(data, 1 + fileNameLength, fileData, 0, fileData.length);
 
@@ -530,22 +494,19 @@ public class HacP2P {
         }
     }
 
-    // Tells all connected nodes that a file was deleted from a node.
+    // Method that communicates with all nodes to delete a given file indicated by the delete comamand in CLI.
     private void broadcastFileDeletion(String fileName) {
         if (peers.isEmpty()) {
             System.out.println("No peers found in config.json.");
             return;
         }
         try {
-            // Create the deletion message with explicit UTF-8 encoding
             String message = "DELETE:" + fileName;
             byte[] data = message.getBytes(java.nio.charset.StandardCharsets.UTF_8);
 
-            // Wrap the message in a HacPacket with the TYPE_FILEDELETE type
             HacPacket packet = new HacPacket(HacPacket.TYPE_FILEDELETE, (short) selfNodeID, System.currentTimeMillis(), data);
             byte[] packetBytes = packet.convertToBytes();
 
-            // Send the deletion packet to all peers (skipping self)
             for (Config.Node node : peers) {
                 if (node.getIp().equals(myIP)) {
                     continue;

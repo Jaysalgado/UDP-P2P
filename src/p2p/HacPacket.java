@@ -70,7 +70,6 @@ public class HacPacket {
             long timestamp = (timeHigh << 32) | timeLow;
             int length = buffer.getInt();
 
-            // **Check if length is valid**
             if (length < 0 || length > bytes.length - 16) {
                 System.out.println("Error: Malformed packet with invalid data length (" + length + "). Ignoring.");
                 return null;
