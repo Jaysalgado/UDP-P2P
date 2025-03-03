@@ -187,16 +187,23 @@ public class HacP2P {
 
                 case HacPacket.TYPE_FILEDELETE:
                     System.out.println("🗑️ Received file delete request.");
+
+                    // Convert the raw packet data to a string (UTF-8)
+                    String deleteDataString = new String(packet.getData(), java.nio.charset.StandardCharsets.UTF_8);
+
+                    // Extract the file name (assuming message is "DELETE:someFileName")
+                    String fileToDelete = deleteDataString.substring("DELETE:".length()).trim();
+                    deleteFile(fileToDelete);
                     break;
 
                 case HacPacket.TYPE_FILETRANSFER:
                     System.out.println("📦 Received file transfer packet.");
-                    String dataString = new String(packet.getData());
+                    String transferDataString = new String(packet.getData());
 
                     // If it's a request for a file
-                    if (dataString.startsWith("REQUEST:")) {
-                        String fileName = dataString.substring(8).trim();
-                        System.out.println("🛜 File request received for: " + fileName + " from " + senderIP.getHostAddress());
+                    if (transferDataString.startsWith("REQUEST:")) {
+                        String fileName = transferDataString.substring(8).trim();
+                        System.out.println("🛜 File request received for: " + fileName);
                         sendFile(senderIP.getHostAddress(), new File(pathToNodeHomeDir, fileName));
                     } else {
                         System.out.println("⬇️ Receiving actual file data...");
@@ -529,19 +536,28 @@ public class HacP2P {
             System.out.println("No peers found in config.json.");
             return;
         }
-
         try {
+            // Create the deletion message with explicit UTF-8 encoding
             String message = "DELETE:" + fileName;
-            byte[] data = message.getBytes();
+            byte[] data = message.getBytes(java.nio.charset.StandardCharsets.UTF_8);
 
+            // Wrap the message in a HacPacket with the TYPE_FILEDELETE type
+            HacPacket packet = new HacPacket(HacPacket.TYPE_FILEDELETE, (short) selfNodeID, System.currentTimeMillis(), data);
+            byte[] packetBytes = packet.convertToBytes();
+
+            // Send the deletion packet to all peers (skipping self)
             for (Config.Node node : peers) {
+                if (node.getIp().equals(myIP)) {
+                    continue;
+                }
                 InetAddress address = InetAddress.getByName(node.getIp());
-                DatagramPacket packet = new DatagramPacket(data, data.length, address, port);
-                sendSocket.send(packet);
+                DatagramPacket datagramPacket = new DatagramPacket(packetBytes, packetBytes.length, address, port);
+                sendSocket.send(datagramPacket);
                 System.out.println("Notified " + node.getIp() + " about deleted file: " + fileName);
             }
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
+
 }
