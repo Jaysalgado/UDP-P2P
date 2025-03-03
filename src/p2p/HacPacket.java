@@ -44,10 +44,13 @@ public class HacPacket {
 
         if (length > 0) {
             buffer.put(data);
+        } else {
+            System.out.println("Warning: Empty packet being sent.");
         }
 
         return buffer.array();
     }
+
 
     public static HacPacket convertFromBytes(byte[] bytes) {
         if (bytes == null || bytes.length < 16) {
@@ -67,8 +70,8 @@ public class HacPacket {
             long timestamp = (timeHigh << 32) | timeLow;
             int length = buffer.getInt();
 
-            // **Check if the packet length is valid**
-            if (length < 0 || length > (bytes.length - 16)) {
+            // **Check if length is valid**
+            if (length < 0 || length > bytes.length - 16) {
                 System.out.println("Error: Malformed packet with invalid data length (" + length + "). Ignoring.");
                 return null;
             }
@@ -76,6 +79,8 @@ public class HacPacket {
             byte[] data = new byte[length];
             if (length > 0) {
                 buffer.get(data);
+            } else {
+                System.out.println("Warning: Received an empty data payload.");
             }
 
             return new HacPacket(type, nodeID, timestamp, data);
