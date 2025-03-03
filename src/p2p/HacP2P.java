@@ -259,6 +259,10 @@ public class HacP2P {
         return fileNames;
     }
 
+    public void retrieveMyList() {
+
+    }
+
     // Allows us to add a file from an input path to anywhere on our PC.
     // Connects to sendFileList() in order to communicate with peers regarding the addition.
     public void addFile(File file) {

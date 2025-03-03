@@ -13,6 +13,7 @@ public class Main {
         while (true) {
             System.out.println("Enter a command:");
             System.out.println("'send' to deliver file list, 'add' to add file, 'delete' to delete file' or 'exit' to quit");
+            System.out.println("'retrieve' grabs current file listing for this node.");
             String command = readInputs.nextLine();
 
             if (command.equalsIgnoreCase("send")) {
@@ -36,6 +37,8 @@ public class Main {
             } else if (command.equalsIgnoreCase("exit")) {
                 System.out.print("Exiting interface.");
                 break;
+            } else if (command.equalsIgnoreCase("retrieve")) {
+                peer.retrieveMyList();
             } else {
                 System.out.println("Unable to parse command.");
             }

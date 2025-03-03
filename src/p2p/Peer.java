@@ -39,7 +39,8 @@ public class Peer {
         hac.sendFileList();
     }
 
-    public List<String> listFiles() {
-        return hac.retrieveDirItems();
+    public void retrieveMyList() {
+        List<String> files = hac.retrieveDirItems();
+        System.out.println("Files stored in this node: " + files);
     }
 }
