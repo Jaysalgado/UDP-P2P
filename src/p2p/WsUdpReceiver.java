@@ -4,6 +4,8 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.util.HashMap;
+import java.util.List;
+
 import com.google.gson.Gson;
 
 
@@ -46,7 +48,7 @@ public class WsUdpReceiver {
     private  void processMessage(String message, InetAddress address, int port, DatagramSocket socket) {
         // Example: Add logic to integrate with your HAC system
         if (message.equals("GET_PEERS")) {
-            System.out.println("Received request for file list.");
+            System.out.println("Received request for peers list.");
 
             HashMap<Integer, String> peers = peer.getPeers(); // Get file list from Peer
             String jsonResponse = gson.toJson(peers); // Convert HashMap to JSON
@@ -61,7 +63,21 @@ public class WsUdpReceiver {
                 e.printStackTrace();
             }
 
-        } else {
+        } else if (message.equals("GET_FILES")){
+            System.out.println("Received request for files list.");
+            List<String> files = peer.listFiles();
+            String jsonResponse = gson.toJson(files);
+
+            try {
+                byte[] responseData = jsonResponse.getBytes();
+                DatagramPacket responsePacket = new DatagramPacket(responseData, responseData.length, address, port);
+                socket.send(responsePacket); // Send JSON response
+                System.out.println("Sent JSON response to WebSocket Proxy: " + jsonResponse);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+                else {
             System.out.println("Unknown command: " + message);
         }
     }

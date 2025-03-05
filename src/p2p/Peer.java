@@ -62,6 +62,4 @@ public class Peer {
         return hac.activePeers;
     }
 
-
-
 }
