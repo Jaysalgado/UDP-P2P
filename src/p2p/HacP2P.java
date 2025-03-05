@@ -29,7 +29,7 @@ public class HacP2P {
     private final SecureRandom secureRandom = new SecureRandom();
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(10);
     private ExecutorService messageHandlerPool = Executors.newFixedThreadPool(6);
-    private HashMap<Integer, String> activePeers = new HashMap<>();
+    public HashMap<Integer, String> activePeers = new HashMap<>();
     private HashMap<Integer, Long> lastHeartbeat = new HashMap<>();
 
     public HacP2P (int port, List<Config.Node> peers, String myIP){
