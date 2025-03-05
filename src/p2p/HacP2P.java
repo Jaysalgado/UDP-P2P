@@ -336,39 +336,42 @@ public class HacP2P {
         List<String> receivedFileList = new Gson().fromJson(jsonString, List.class);
         List<String> localFiles = retrieveDirItems();
 
+        Set<String> receivedSet = new HashSet<>(receivedFileList);
+        Set<String> localSet = new HashSet<>(localFiles);
+
         List<String> filesToDownload = new ArrayList<>();
         List<String> filesToBroadcast = new ArrayList<>();
         List<String> filesToDelete = new ArrayList<>();
 
         for (String fileName : localFiles) {
-            if (!fileName.equalsIgnoreCase("config.json") && !receivedFileList.contains(fileName)) {
+            if (!fileName.equalsIgnoreCase("config.json") && !receivedSet.contains(fileName)) {
                 System.out.println("New file detected: " + fileName + " - Broadcasting update to peers.");
                 filesToBroadcast.add(fileName);
-                recentlyBroadcastedFiles.add(fileName);
             }
         }
 
         for (String fileName : receivedFileList) {
-            if (!localFiles.contains(fileName)) {
+            if (!localSet.contains(fileName)) {
                 System.out.println("Missing file detected: " + fileName + " - Requesting from Node " + packet.getNodeID());
                 filesToDownload.add(fileName);
             }
         }
 
+        for (String fileName : localFiles) {
+            if (!receivedSet.contains(fileName) && !fileName.equalsIgnoreCase("config.json")) {
+                System.out.println("Extra file detected: " + fileName + " - Marking for deletion.");
+                filesToDelete.add(fileName);
+            }
+        }
+
         for (String fileName : filesToDownload) {
-            requestFile(packet.getNodeID(), fileName);
+            if (!recentlyBroadcastedFiles.contains(fileName)) {
+                requestFile(packet.getNodeID(), fileName);
+            }
         }
 
         if (!filesToBroadcast.isEmpty()) {
             sendFileList();
-            return;
-        }
-
-        for (String fileName : localFiles) {
-            if (!receivedFileList.contains(fileName) && !fileName.equalsIgnoreCase("config.json") && !recentlyBroadcastedFiles.contains(fileName)) {
-                System.out.println("Extra file detected: " + fileName + " - Marking for deletion.");
-                filesToDelete.add(fileName);
-            }
         }
 
         for (String fileName : filesToDelete) {
@@ -419,6 +422,12 @@ public class HacP2P {
 
     // Method for requesting the appropriate file from an appropriate node.
     private void requestFile(int nodeID, String fileName) {
+        File file = new File(pathToNodeHomeDir, fileName);
+        if (file.exists()) {
+            System.out.println("Skipping request for " + fileName + " - Already exists locally.");
+            return;
+        }
+
         try {
             String message = "REQUEST:" + fileName;
             byte[] requestData = message.getBytes(java.nio.charset.StandardCharsets.UTF_8);
