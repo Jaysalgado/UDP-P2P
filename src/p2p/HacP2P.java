@@ -180,9 +180,10 @@ public class HacP2P {
                     System.out.println("Received file delete request.");
 
                     String deleteDataString = new String(packet.getData(), java.nio.charset.StandardCharsets.UTF_8);
-
                     String fileToDelete = deleteDataString.substring("DELETE:".length()).trim();
+
                     deleteFile(fileToDelete);
+                    sendFileList();
                     break;
 
                 case HacPacket.TYPE_FILETRANSFER:
@@ -485,6 +486,7 @@ public class HacP2P {
 
         if (file.delete()) {
             System.out.println("File deleted: " + fileName);
+            sendFileList();
             broadcastFileDeletion(fileName);
         } else {
             System.out.println("Failed to delete file: " + fileName);
