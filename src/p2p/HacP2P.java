@@ -34,6 +34,7 @@ public class HacP2P {
     private ExecutorService messageHandlerPool = Executors.newFixedThreadPool(6);
     public HashMap<Integer, String> activePeers = new HashMap<>();
     private HashMap<Integer, Long> lastHeartbeat = new HashMap<>();
+    private HashMap<String, Long> deletedFiles = new HashMap<>();
 
     public HacP2P (int port, List<Config.Node> peers, String myIP){
         this.port = port;
@@ -180,10 +181,9 @@ public class HacP2P {
                     System.out.println("Received file delete request.");
 
                     String deleteDataString = new String(packet.getData(), java.nio.charset.StandardCharsets.UTF_8);
-                    String fileToDelete = deleteDataString.substring("DELETE:".length()).trim();
 
+                    String fileToDelete = deleteDataString.substring("DELETE:".length()).trim();
                     deleteFile(fileToDelete);
-                    sendFileList();
                     break;
 
                 case HacPacket.TYPE_FILETRANSFER:
@@ -336,51 +336,44 @@ public class HacP2P {
         List<String> receivedFileList = new Gson().fromJson(jsonString, List.class);
         List<String> localFiles = retrieveDirItems();
 
-        Set<String> receivedSet = new HashSet<>(receivedFileList);
-        Set<String> localSet = new HashSet<>(localFiles);
+        Set<String> receivedFileSet = new HashSet<>();
+        for (String file : receivedFileList) {
+            receivedFileSet.add(file.toLowerCase().trim()); // Normalize filenames
+        }
+
+        Set<String> localFileSet = new HashSet<>();
+        for (String file : localFiles) {
+            localFileSet.add(file.toLowerCase().trim()); // Normalize filenames
+        }
 
         List<String> filesToDownload = new ArrayList<>();
         List<String> filesToBroadcast = new ArrayList<>();
-        List<String> filesToDelete = new ArrayList<>();
 
-        // Detect new files to broadcast
-        for (String fileName : localFiles) {
-            if (!fileName.equalsIgnoreCase("config.json") && !receivedSet.contains(fileName)) {
+        for (String fileName : localFileSet) {
+            if (!fileName.equalsIgnoreCase("config.json") && !receivedFileSet.contains(fileName)) {
+                if (recentlyBroadcastedFiles.contains(fileName)) {
+                    System.out.println("Skipping redundant broadcast for: " + fileName);
+                    continue;
+                }
                 System.out.println("New file detected: " + fileName + " - Broadcasting update to peers.");
                 filesToBroadcast.add(fileName);
+                recentlyBroadcastedFiles.add(fileName);
             }
         }
 
-        // Detect missing files to download
-        for (String fileName : receivedFileList) {
-            if (!localSet.contains(fileName)) {
+        for (String fileName : receivedFileSet) {
+            if (!localFileSet.contains(fileName) && !deletedFiles.containsKey(fileName)) {  // Prevent re-requesting deleted files
                 System.out.println("Missing file detected: " + fileName + " - Requesting from Node " + packet.getNodeID());
                 filesToDownload.add(fileName);
             }
         }
 
-        // **Delay deletion to avoid race conditions**
-        for (String fileName : localFiles) {
-            if (!receivedSet.contains(fileName) && !fileName.equalsIgnoreCase("config.json")) {
-                System.out.println("Potential stale file detected: " + fileName + ". Waiting before deletion.");
-
-                // Schedule deletion in 30 seconds to ensure it's not a temporary sync issue
-                scheduler.schedule(() -> {
-                    if (!retrieveDirItems().contains(fileName)) {  // Double-check before deleting
-                        deleteFile(fileName);
-                    } else {
-                        System.out.println("Deletion canceled: " + fileName + " was found to exist.");
-                    }
-                }, 30, TimeUnit.SECONDS);
-            }
-        }
-
+        // Send file requests
         for (String fileName : filesToDownload) {
-            if (!recentlyBroadcastedFiles.contains(fileName)) {
-                requestFile(packet.getNodeID(), fileName);
-            }
+            requestFile(packet.getNodeID(), fileName);
         }
 
+        // Send file list only if new files were added
         if (!filesToBroadcast.isEmpty()) {
             sendFileList();
         }
@@ -429,12 +422,6 @@ public class HacP2P {
 
     // Method for requesting the appropriate file from an appropriate node.
     private void requestFile(int nodeID, String fileName) {
-        File file = new File(pathToNodeHomeDir, fileName);
-        if (file.exists()) {
-            System.out.println("Skipping request for " + fileName + " - Already exists locally.");
-            return;
-        }
-
         try {
             String message = "REQUEST:" + fileName;
             byte[] requestData = message.getBytes(java.nio.charset.StandardCharsets.UTF_8);
@@ -484,13 +471,6 @@ public class HacP2P {
         try {
             Files.write(receivedFile.toPath(), fileData);
             System.out.println("Successfully received and saved file: " + fileName);
-
-            // **Mark file as 'safe' after receiving**
-            recentlyBroadcastedFiles.add(fileName);
-
-            // Cancel scheduled deletion if this file was marked
-            scheduler.schedule(() -> recentlyBroadcastedFiles.remove(fileName), 1, TimeUnit.MINUTES);
-
         } catch (IOException e) {
             System.out.println("Error writing received file: " + fileName);
             e.printStackTrace();
@@ -509,7 +489,7 @@ public class HacP2P {
 
         if (file.delete()) {
             System.out.println("File deleted: " + fileName);
-            sendFileList();
+            deletedFiles.put(fileName, System.currentTimeMillis()); // Store deletion time
             broadcastFileDeletion(fileName);
         } else {
             System.out.println("Failed to delete file: " + fileName);
