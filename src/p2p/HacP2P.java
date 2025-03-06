@@ -141,10 +141,8 @@ public class HacP2P {
                 return;
             }
 
-            // Extract raw bytes and log them
             byte[] receivedBytes = Arrays.copyOf(incomingPacket.getData(), incomingPacket.getLength());
 
-            // Convert to HacPacket
             HacPacket packet = HacPacket.convertFromBytes(receivedBytes);
             if (packet == null) {
                 System.out.println("Error: Packet conversion failed. Data may be corrupt.");
@@ -153,7 +151,6 @@ public class HacP2P {
 
             int senderPort = incomingPacket.getPort();
 
-            // Validate node ID before accessing peers list
             if (packet.getNodeID() >= 0 && packet.getNodeID() < peers.size()) {
                 System.out.println("Sender's IP: " + peers.get(packet.getNodeID()).getIp());
                 System.out.println("Sender's Port: " + senderPort);
@@ -161,7 +158,6 @@ public class HacP2P {
                 System.out.println("Packet received from unknown: " + packet.getNodeID());
             }
 
-            // Handle different packet types
             switch (packet.getType()) {
                 case HacPacket.TYPE_HEARTBEAT:
                     checkHeartbeats(packet);
@@ -190,7 +186,6 @@ public class HacP2P {
                     System.out.println("Received file transfer packet.");
                     String transferDataString = new String(packet.getData());
 
-                    // If it's a request for a file
                     if (transferDataString.startsWith("REQUEST:")) {
                         String fileName = transferDataString.substring(8).trim();
                         System.out.println("File request received for: " + fileName);
@@ -228,7 +223,8 @@ public class HacP2P {
         }
     }
 
-    // Checks to see if the home directory exists, if not we create it.
+
+    // Checks to see if home directory exists, and if not, initializes it.
     private void initHomeDirectory() {
         File file = new File(pathToNodeHomeDir);
         if (!file.exists()) {
@@ -280,7 +276,7 @@ public class HacP2P {
         }
     }
 
-    // Retrieves the file list for that specific node, converts it to a JSON and sends it to all connected nodes.
+    // Retrieves the file list for that specific node and sends it to all connected nodes for comparison.
     public void sendFileList() {
         List<String> allFileNames = retrieveDirItems();
 
@@ -336,14 +332,17 @@ public class HacP2P {
         List<String> receivedFileList = new Gson().fromJson(jsonString, List.class);
         List<String> localFiles = retrieveDirItems();
 
+
+        // For the sake of this project, we assumed the file names would be homogenous between node directories
+        // but implemented failsafe just in case files were named differently. Sets to lower-case for consistency.
         Set<String> receivedFileSet = new HashSet<>();
         for (String file : receivedFileList) {
-            receivedFileSet.add(file.toLowerCase().trim()); // Normalize filenames
+            receivedFileSet.add(file.toLowerCase().trim());
         }
 
         Set<String> localFileSet = new HashSet<>();
         for (String file : localFiles) {
-            localFileSet.add(file.toLowerCase().trim()); // Normalize filenames
+            localFileSet.add(file.toLowerCase().trim());
         }
 
         List<String> filesToDownload = new ArrayList<>();
@@ -368,12 +367,10 @@ public class HacP2P {
             }
         }
 
-        // Send file requests
         for (String fileName : filesToDownload) {
             requestFile(packet.getNodeID(), fileName);
         }
 
-        // Send file list only if new files were added
         if (!filesToBroadcast.isEmpty()) {
             sendFileList();
         }
