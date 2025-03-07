@@ -5,6 +5,8 @@ import com.google.gson.GsonBuilder;
 import java.io.FileReader;
 import java.io.IOException;
 
+
+// Reads and interprets config.json
 public class ConfigHandler {
     public static Config loadConfig() {
         Gson gson = new GsonBuilder().setPrettyPrinting().create();
