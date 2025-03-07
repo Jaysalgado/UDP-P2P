@@ -12,31 +12,30 @@ import com.google.gson.Gson;
 public class WsUdpReceiver {
 
     private static final int PORT = 9999;
-    private Peer peer; // Reference to Peer instance
-    private Gson gson = new Gson(); // Gson instance for JSON conversion
+    private Peer peer;
+    private Gson gson = new Gson();
 
     public WsUdpReceiver(Peer peer) {
-        this.peer = peer; // Store reference to the Peer instance
+        this.peer = peer;
+
     }
 
     public void start() {
         try (DatagramSocket socket = new DatagramSocket(PORT)) {
             byte[] buffer = new byte[1024];
 
-            System.out.println("WebSocket UDP Receiver started on port " + PORT);
+//            System.out.println("WebSocket UDP Receiver started on port " + PORT);
 
             while (true) {
                 DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
                 socket.receive(packet);
 
                 String message = new String(packet.getData(), 0, packet.getLength());
-                System.out.println("Received from WebSocket Proxy: " + message);
+//                System.out.println("Received from WebSocket Proxy: " + message);
 
-                // Get sender details
                 InetAddress senderAddress = packet.getAddress();
                 int senderPort = packet.getPort();
 
-                // Process the message and send response
                 processMessage(message, senderAddress, senderPort, socket);
             }
         } catch (Exception e) {
@@ -46,32 +45,35 @@ public class WsUdpReceiver {
 
 
     private  void processMessage(String message, InetAddress address, int port, DatagramSocket socket) {
-        // Example: Add logic to integrate with your HAC system
+        HashMap<Object, Object> response = new HashMap<>();
         if (message.equals("GET_PEERS")) {
-            System.out.println("Received request for peers list.");
-
-            HashMap<Integer, String> peers = peer.getPeers(); // Get file list from Peer
-            String jsonResponse = gson.toJson(peers); // Convert HashMap to JSON
-            System.out.println("peers status " + peers);
+//            System.out.println("Received request for peers list.");
+            response.put("type", "GET_PEERS");
+            HashMap<Integer, String> peers = peer.getPeers();
+            response.put("data", peers);
+            String jsonResponse = gson.toJson(response);
+//            System.out.println("peers status " + peers);
 
             try {
                 byte[] responseData = jsonResponse.getBytes();
                 DatagramPacket responsePacket = new DatagramPacket(responseData, responseData.length, address, port);
-                socket.send(responsePacket); // Send JSON response
+                socket.send(responsePacket);
                 System.out.println("Sent JSON response to WebSocket Proxy: " + jsonResponse);
             } catch (Exception e) {
                 e.printStackTrace();
             }
 
         } else if (message.equals("GET_FILES")){
-            System.out.println("Received request for files list.");
+//            System.out.println("Received request for files list.");
+            response.put("type", "GET_FILES");
             List<String> files = peer.listFiles();
-            String jsonResponse = gson.toJson(files);
+            response.put("data", files);
+            String jsonResponse = gson.toJson(response);
 
             try {
                 byte[] responseData = jsonResponse.getBytes();
                 DatagramPacket responsePacket = new DatagramPacket(responseData, responseData.length, address, port);
-                socket.send(responsePacket); // Send JSON response
+                socket.send(responsePacket);
                 System.out.println("Sent JSON response to WebSocket Proxy: " + jsonResponse);
             } catch (Exception e) {
                 e.printStackTrace();

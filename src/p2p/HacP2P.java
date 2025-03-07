@@ -59,7 +59,7 @@ public class HacP2P {
     public void activateHac () {
         new Thread (this::startHeartbeats).start();
         new Thread(this::listen).start();
-        scheduler.scheduleAtFixedRate(this::isAlive, 10, 30, TimeUnit.SECONDS);
+        scheduler.scheduleAtFixedRate(this::isAlive, 10, 15, TimeUnit.SECONDS);
     }
 
     private void startHeartbeats ()  {
@@ -91,6 +91,7 @@ public class HacP2P {
         // Find the index of myIP in config.json
         for (int i = 0; i < peers.size(); i++) {
             if (peers.get(i).getIp().equals(myIP)) {
+                activePeers.put(i, "ACTIVE");
                 nodeID = (short) i;
                 break;
             }
