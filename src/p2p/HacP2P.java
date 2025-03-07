@@ -226,9 +226,9 @@ public class HacP2P {
 
     // Checks to see if home directory exists, and if not, initializes it.
     private void initHomeDirectory() {
-        File file = new File(pathToNodeHomeDir);
-        if (!file.exists()) {
-            file.mkdirs();
+        File path = new File(pathToNodeHomeDir);
+        if (!path.exists()) {
+            path.mkdirs();
             System.out.println("Home directory not detected. Created: " + pathToNodeHomeDir);
         }
     }
