@@ -19,6 +19,14 @@ import java.nio.file.StandardCopyOption;
 import java.io.IOException;
 import com.google.gson.Gson;
 import java.nio.ByteBuffer;
+import java.nio.file.WatchService;
+import java.nio.file.FileSystems;
+import java.nio.file.StandardWatchEventKinds;
+import java.nio.file.WatchEvent;
+import java.nio.file.WatchKey;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+
 
 public class HacP2P {
     private DatagramSocket sendSocket;
@@ -57,6 +65,7 @@ public class HacP2P {
     }
 
     public void activateHac () {
+        new Thread(this::watchDirectoryForChanges).start();
         new Thread (this::startHeartbeats).start();
         new Thread(this::listen).start();
         scheduler.scheduleAtFixedRate(this::isAlive, 10, 15, TimeUnit.SECONDS);
@@ -336,15 +345,9 @@ public class HacP2P {
 
         // For the sake of this project, we assumed the file names would be homogenous between node directories
         // but implemented failsafe just in case files were named differently. Sets to lower-case for consistency.
-        Set<String> receivedFileSet = new HashSet<>();
-        for (String file : receivedFileList) {
-            receivedFileSet.add(file.toLowerCase().trim());
-        }
+        Set<String> receivedFileSet = new HashSet<>(receivedFileList);
 
-        Set<String> localFileSet = new HashSet<>();
-        for (String file : localFiles) {
-            localFileSet.add(file.toLowerCase().trim());
-        }
+        Set<String> localFileSet = new HashSet<>(localFiles);
 
         List<String> filesToDownload = new ArrayList<>();
         List<String> filesToBroadcast = new ArrayList<>();
@@ -520,5 +523,46 @@ public class HacP2P {
             e.printStackTrace();
         }
     }
+    public void watchDirectoryForChanges() {
+        try {
+            WatchService watchService = FileSystems.getDefault().newWatchService();
 
+            Path dirPath = Paths.get(pathToNodeHomeDir);
+
+            dirPath.register(
+                    watchService,
+                    StandardWatchEventKinds.ENTRY_CREATE,
+                    StandardWatchEventKinds.ENTRY_MODIFY,
+                    StandardWatchEventKinds.ENTRY_DELETE
+            );
+
+            while (!Thread.currentThread().isInterrupted()) {
+                WatchKey key = watchService.take();
+
+                for (WatchEvent<?> event : key.pollEvents()) {
+                    WatchEvent<Path> ev = (WatchEvent<Path>) event;
+                    WatchEvent.Kind<?> kind = ev.kind();
+                    Path fileName = ev.context();
+
+                    File changedFile = new File(pathToNodeHomeDir, fileName.toString());
+
+                    if (kind == StandardWatchEventKinds.ENTRY_CREATE) {
+                        System.out.println("New file detected: " + changedFile.getName());
+                        addFile(changedFile);
+                    }
+                    else if (kind == StandardWatchEventKinds.ENTRY_DELETE) {
+                        System.out.println("File deleted: " + changedFile.getName());
+                        deleteFile(changedFile.getName());
+                    }
+                }
+
+                boolean valid = key.reset();
+                if (!valid) {
+                    break;
+                }
+            }
+        } catch (IOException | InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
 }
