@@ -624,8 +624,21 @@ public class HacP2P {
                     }
                     else if (kind == StandardWatchEventKinds.ENTRY_MODIFY) {
                         System.out.println("File modified: " + changedFile.getName());
-                        deleteFile(changedFile.getName());
-                        addFile(changedFile);
+                        try {
+                            File tempFile = new File(pathToNodeHomeDir, changedFile.getName() + ".tmp");
+                            Files.copy(changedFile.toPath(), tempFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+
+                            deleteFile(changedFile.getName());  // physically removes changedFile
+
+                            File reAddedFile = new File(pathToNodeHomeDir, changedFile.getName());
+                            Files.copy(tempFile.toPath(), reAddedFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+
+                            addFile(reAddedFile);
+
+                            tempFile.delete();
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
                     }
                 }
 
