@@ -26,6 +26,8 @@ import java.nio.file.WatchEvent;
 import java.nio.file.WatchKey;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.charset.StandardCharsets;
+
 
 
 public class HacP2P {
@@ -186,7 +188,21 @@ public class HacP2P {
                     break;
 
                 case HacPacket.TYPE_FILEUPDATE:
-//                    System.out.println("Received file update request.");
+                    String updateJson = new String(packet.getData(), StandardCharsets.UTF_8);
+                    FileUpdateInfo updateInfo = new Gson().fromJson(updateJson, FileUpdateInfo.class);
+
+                    // Compare your local version to the remote version
+                    File localFile = new File(pathToNodeHomeDir, updateInfo.getFileName());
+                    long localVersion = localFile.exists() ? localFile.lastModified() : 0;
+
+                    if (updateInfo.getVersion() > localVersion) {
+                        System.out.println("Detected a newer version of " + updateInfo.getFileName() +
+                                " from node " + packet.getNodeID() + ". Requesting file...");
+                        requestFile(packet.getNodeID(), updateInfo.getFileName());
+                    } else {
+                        System.out.println("Got file-update notification for " + updateInfo.getFileName() +
+                                " but local copy is already up-to-date (or newer).");
+                    }
                     break;
 
                 case HacPacket.TYPE_FILEDELETE:
@@ -327,6 +343,7 @@ public class HacP2P {
             Files.copy(file.toPath(), destFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
             System.out.println("File added: " + destFile.getAbsolutePath());
 
+            broadcastFileUpdate(destFile);
             sendFileList();
         } catch (IOException e) {
             e.printStackTrace();
@@ -628,21 +645,7 @@ public class HacP2P {
                     }
                     else if (kind == StandardWatchEventKinds.ENTRY_MODIFY) {
                         System.out.println("File modified: " + changedFile.getName());
-                        try {
-                            File tempFile = new File(pathToNodeHomeDir, changedFile.getName() + ".tmp");
-                            Files.copy(changedFile.toPath(), tempFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
-
-                            deleteFile(changedFile.getName());  // physically removes changedFile
-
-                            File reAddedFile = new File(pathToNodeHomeDir, changedFile.getName());
-                            Files.copy(tempFile.toPath(), reAddedFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
-
-                            addFile(reAddedFile);
-
-                            tempFile.delete();
-                        } catch (IOException e) {
-                            e.printStackTrace();
-                        }
+                        broadcastFileUpdate(changedFile);
                     }
                 }
 
@@ -655,4 +658,57 @@ public class HacP2P {
             e.printStackTrace();
         }
     }
+
+    public class FileUpdateInfo {
+        private String fileName;
+        private long version;
+
+        public FileUpdateInfo(String fileName, long version) {
+            this.fileName = fileName;
+            this.version = version;
+        }
+
+        public String getFileName() {
+            return fileName;
+        }
+
+        public long getVersion() {
+            return version;
+        }
+    }
+
+    private void broadcastFileUpdate(File file) {
+        try {
+            // Build a small JSON object with filename + new version
+            long version = file.lastModified(); // or an incrementing version
+            FileUpdateInfo updateInfo = new FileUpdateInfo(file.getName(), version);
+
+            String json = new Gson().toJson(updateInfo);
+            byte[] data = json.getBytes(StandardCharsets.UTF_8);
+
+            HacPacket updatePacket = new HacPacket(
+                    HacPacket.TYPE_FILEUPDATE,
+                    (short) selfNodeID,
+                    System.currentTimeMillis(),
+                    data
+            );
+
+            byte[] packetBytes = updatePacket.convertToBytes();
+
+            // Broadcast to all peers
+            for (Config.Node node : peers) {
+                if (!node.getIp().equals(myIP)) {
+                    InetAddress address = InetAddress.getByName(node.getIp());
+                    DatagramPacket sendPacket = new DatagramPacket(packetBytes, packetBytes.length, address, port);
+                    sendSocket.send(sendPacket);
+                }
+            }
+
+            System.out.println("Broadcasted file update for " + file.getName());
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
 }
