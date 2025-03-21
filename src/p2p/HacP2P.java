@@ -234,9 +234,16 @@ public class HacP2P {
         long currentTime = System.currentTimeMillis();
         String timestamp = "=== PEER STATUS AT " + new java.util.Date(currentTime) + " ===";
 
-        // Calculate max line length needed
         int maxContentLength = timestamp.length();
 
+        for (int nodeID : lastHeartbeat.keySet()) {
+            long lastSeen = lastHeartbeat.get(nodeID);
+            if ((currentTime - lastSeen) > 31000) {
+                activePeers.put(nodeID, "INACTIVE");
+            }
+        }
+
+        // Update maxContentLength for formatting
         for (int nodeID : activePeers.keySet()) {
             String status = activePeers.get(nodeID);
             String lineContent;
@@ -248,18 +255,15 @@ public class HacP2P {
                 lineContent = "Node " + nodeID + " is INACTIVE";
             }
 
-            // Update maxContentLength if this line is longer
             maxContentLength = Math.max(maxContentLength, lineContent.length());
         }
 
-        // Create a separator with the required length
         String separator = "=".repeat(maxContentLength);
 
         // Print section
         System.out.println("\n" + GREEN + separator + RESET);
         System.out.println(GREEN + timestamp + RESET);
 
-        // Print status of each node
         for (int nodeID : activePeers.keySet()) {
             String status = activePeers.get(nodeID);
             String color = status.equals("ACTIVE") ? GREEN : RED;
