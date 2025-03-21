@@ -617,6 +617,11 @@ public class HacP2P {
                         System.out.println("File deleted: " + changedFile.getName());
                         deleteFile(changedFile.getName());
                     }
+                    else if (kind == StandardWatchEventKinds.ENTRY_MODIFY) {
+                        System.out.println("File modified: " + changedFile.getName());
+                        // For example, call addFile(changedFile) if you want to broadcast the updated file
+                        // or some “updateFile” method, depending on how you handle changed files.
+                    }
                 }
 
                 boolean valid = key.reset();
