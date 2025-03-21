@@ -233,17 +233,31 @@ public class HacP2P {
     private void isAlive() {
         long currentTime = System.currentTimeMillis();
         String timestamp = "=== PEER STATUS AT " + new java.util.Date(currentTime) + " ===";
-        int lineLength = timestamp.length();
-        String separator = "=".repeat(lineLength); // Dynamically match separator length
 
-        System.out.println("\n" + GREEN + timestamp + RESET);
+        // Calculate max line length needed
+        int maxContentLength = timestamp.length();
 
-        // Mark inactive nodes based on heartbeat timeout
-        for (int nodeID : lastHeartbeat.keySet()) {
-            if (currentTime - lastHeartbeat.get(nodeID) > 31000) {
-                activePeers.put(nodeID, "INACTIVE");
+        for (int nodeID : activePeers.keySet()) {
+            String status = activePeers.get(nodeID);
+            String lineContent;
+
+            if (status.equals("ACTIVE")) {
+                List<String> files = nodeFiles.getOrDefault(nodeID, new ArrayList<>());
+                lineContent = "Node " + nodeID + " files: " + files;
+            } else {
+                lineContent = "Node " + nodeID + " is INACTIVE";
             }
+
+            // Update maxContentLength if this line is longer
+            maxContentLength = Math.max(maxContentLength, lineContent.length());
         }
+
+        // Create a separator with the required length
+        String separator = "=".repeat(maxContentLength);
+
+        // Print section
+        System.out.println("\n" + GREEN + separator + RESET);
+        System.out.println(GREEN + timestamp + RESET);
 
         // Print status of each node
         for (int nodeID : activePeers.keySet()) {
@@ -258,8 +272,9 @@ public class HacP2P {
             }
         }
 
-        System.out.println("\n" + GREEN + separator + RESET);
+        System.out.println(GREEN + separator + RESET);
     }
+
 
 
     // Checks to see if home directory exists, and if not, initializes it.
