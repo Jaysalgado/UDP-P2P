@@ -79,7 +79,7 @@ public class HacP2P {
         new Thread(this::watchDirectoryForChanges).start();
         new Thread (this::startHeartbeats).start();
         new Thread(this::listen).start();
-        scheduler.scheduleAtFixedRate(this::isAlive, 10, 15, TimeUnit.SECONDS);
+        scheduler.scheduleAtFixedRate(this::isAlive, 5, 15, TimeUnit.SECONDS);
     }
 
     private void startHeartbeats ()  {
@@ -232,7 +232,11 @@ public class HacP2P {
 
     private void isAlive() {
         long currentTime = System.currentTimeMillis();
-        System.out.println("\n" + GREEN + "=== PEER STATUS AT " + new java.util.Date(currentTime) + " ===" + RESET);
+        String timestamp = "=== PEER STATUS AT " + new java.util.Date(currentTime) + " ===";
+        int lineLength = timestamp.length();
+        String separator = "=".repeat(lineLength); // Dynamically match separator length
+
+        System.out.println("\n" + GREEN + timestamp + RESET);
 
         // Mark inactive nodes based on heartbeat timeout
         for (int nodeID : lastHeartbeat.keySet()) {
@@ -241,6 +245,7 @@ public class HacP2P {
             }
         }
 
+        // Print status of each node
         for (int nodeID : activePeers.keySet()) {
             String status = activePeers.get(nodeID);
             String color = status.equals("ACTIVE") ? GREEN : RED;
@@ -253,7 +258,7 @@ public class HacP2P {
             }
         }
 
-        System.out.println("\n" + GREEN + "===================================================" + RESET);
+        System.out.println("\n" + GREEN + separator + RESET);
     }
 
 
