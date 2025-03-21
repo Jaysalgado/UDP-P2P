@@ -610,7 +610,7 @@ public class HacP2P {
                     File changedFile = new File(pathToNodeHomeDir, fileName.toString());
 
                     if (changedFile.getName().startsWith(".")) {
-                        System.out.println("Skipping ephemeral/hidden file: " + changedFile.getName());
+                        System.out.println("Skipping/hidden file: " + changedFile.getName());
                         continue;
                     }
 
@@ -624,6 +624,7 @@ public class HacP2P {
                     }
                     else if (kind == StandardWatchEventKinds.ENTRY_MODIFY) {
                         System.out.println("File modified: " + changedFile.getName());
+                        deleteFile(changedFile.getName());
                         addFile(changedFile);
                     }
                 }
