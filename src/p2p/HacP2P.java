@@ -29,6 +29,13 @@ import java.nio.file.Paths;
 
 
 public class HacP2P {
+    private static final String RESET = "\033[0m";  // Reset color
+    private static final String PINK = "\033[95m";  // Heartbeats
+    private static final String RED = "\033[91m";   // Dead clients
+    private static final String GREEN = "\033[92m"; // Recovered clients
+    private static final String DARK_GREEN = "\033[32m"; // File updates
+    private static final String LIGHT_RED = "\033[31m";  // File deletes
+    private static final String BLUE = "\033[94m";  // File transfers
     private DatagramSocket sendSocket;
     private DatagramSocket receiveSocket;
     private final int port;
@@ -43,6 +50,7 @@ public class HacP2P {
     public HashMap<Integer, String> activePeers = new HashMap<>();
     private HashMap<Integer, Long> lastHeartbeat = new HashMap<>();
     private HashMap<String, Long> deletedFiles = new HashMap<>();
+    private static HashMap<Integer, List<String>> nodeFiles = new HashMap<>();
 
     public HacP2P (int port, List<Config.Node> peers, String myIP){
         this.port = port;
@@ -54,6 +62,9 @@ public class HacP2P {
                 .map(Config.Node::getId)
                 .findFirst()
                 .orElse(-1);
+        if (this.selfNodeID == -1) {
+            System.out.println(RED + "Error: Node ID not found for IP: " + myIP + RESET);
+        }
 
         try {
             this.receiveSocket = new DatagramSocket(port);
@@ -73,52 +84,46 @@ public class HacP2P {
 
     private void startHeartbeats ()  {
 
-        List<String> allFileNames = retrieveDirItems();
-        List<String> filteredFileNames = allFileNames.stream()
-                .filter(fileName -> !fileName.equalsIgnoreCase("config.json"))
-                .toList();
-        String fileListJson = new Gson().toJson(filteredFileNames);
-        byte[] data = fileListJson.getBytes();
-
         for (Config.Node peer : peers) {
+
             String peerIP = peer.getIp();
             if (peerIP.equals(myIP)) {
                 continue;
             }
 
-            int interval = secureRandom.nextInt(31) + 1;      // Random interval (1-31 sec)
-            System.out.println("Sending heartbeats to " + peerIP + " every " + interval + " seconds");
-            scheduler.scheduleAtFixedRate(() -> sendHeartbeats(peerIP, data), 0, interval, TimeUnit.SECONDS);
+            int interval = secureRandom.nextInt(31) + 1;
 
+            scheduler.scheduleAtFixedRate(() -> {
+                List<String> allFileNames = retrieveDirItems();
+                List<String> filteredFileNames = allFileNames.stream()
+                        .filter(fileName -> !fileName.equalsIgnoreCase("config.json"))
+                        .toList();
+                nodeFiles.put(this.selfNodeID, filteredFileNames);
+                String fileListJson = new Gson().toJson(filteredFileNames);
+                byte[] data = fileListJson.getBytes();
+
+                sendHeartbeats(peerIP, data);
+            }, 0, interval, TimeUnit.SECONDS);
         }
 
     }
 
     private void sendHeartbeats (String peerIP, byte[] data) {
-        short nodeID = -1;
 
-        // Find the index of myIP in config.json
-        for (int i = 0; i < peers.size(); i++) {
-            if (peers.get(i).getIp().equals(myIP)) {
-                activePeers.put(i, "ACTIVE");
-                nodeID = (short) i;
-                break;
-            }
-        }
-
-        // If not found in our config.json
-        if (nodeID == -1) {
-            System.out.println("Warning: Could not find myIP in peer list.");
-            return;
-        }
+        activePeers.put(this.selfNodeID, "ACTIVE");
 
         try {
-            HacPacket protocol = new HacPacket(HacPacket.TYPE_HEARTBEAT, nodeID, System.currentTimeMillis(), data);
+            HacPacket protocol = new HacPacket(HacPacket.TYPE_HEARTBEAT, (short) this.selfNodeID, System.currentTimeMillis(), data);
             byte[] packet = protocol.convertToBytes();
             InetAddress address = InetAddress.getByName(peerIP);
             DatagramPacket sendPacket = new DatagramPacket(packet, packet.length, address, port);
             sendSocket.send(sendPacket);
-            System.out.println("Sent heartbeat to: " + peerIP);
+//            System.out.println("Sent heartbeat to: " + peerIP);
+        } catch (java.net.NoRouteToHostException e) {
+            System.err.println(RED + "Error sending heartbeat: Unable to reach host - no route available for ip: " + peerIP + RESET);
+        }  catch (java.net.SocketException e) {
+                System.err.println(RED + "Error sending heartbeat: Host is down at ip: " + peerIP + RESET);
+
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -142,6 +147,7 @@ public class HacP2P {
         }
 
     }
+
     private void routeMessages(DatagramPacket incomingPacket) {
         try {
             InetAddress senderIP = incomingPacket.getAddress();
@@ -162,8 +168,8 @@ public class HacP2P {
             int senderPort = incomingPacket.getPort();
 
             if (packet.getNodeID() >= 0 && packet.getNodeID() < peers.size()) {
-                System.out.println("Sender's IP: " + peers.get(packet.getNodeID()).getIp());
-                System.out.println("Sender's Port: " + senderPort);
+//                System.out.println("Sender's IP: " + peers.get(packet.getNodeID()).getIp());
+//                System.out.println("Sender's Port: " + senderPort);
             } else {
                 System.out.println("Packet received from unknown: " + packet.getNodeID());
             }
@@ -175,16 +181,16 @@ public class HacP2P {
                     break;
 
                 case HacPacket.TYPE_FILELIST:
-                    System.out.println("Received file list from node " + packet.getNodeID());
+//                    System.out.println("Received file list from node " + packet.getNodeID());
                     compareFileLists(packet);
                     break;
 
                 case HacPacket.TYPE_FILEUPDATE:
-                    System.out.println("Received file update request.");
+//                    System.out.println("Received file update request.");
                     break;
 
                 case HacPacket.TYPE_FILEDELETE:
-                    System.out.println("Received file delete request.");
+//                    System.out.println("Received file delete request.");
 
                     String deleteDataString = new String(packet.getData(), java.nio.charset.StandardCharsets.UTF_8);
 
@@ -193,15 +199,15 @@ public class HacP2P {
                     break;
 
                 case HacPacket.TYPE_FILETRANSFER:
-                    System.out.println("Received file transfer packet.");
+//                    System.out.println("Received file transfer packet.");
                     String transferDataString = new String(packet.getData());
 
                     if (transferDataString.startsWith("REQUEST:")) {
                         String fileName = transferDataString.substring(8).trim();
-                        System.out.println("File request received for: " + fileName);
+                        System.out.println(BLUE + "File request received for: " + fileName + RESET);
                         sendFile(senderIP.getHostAddress(), new File(pathToNodeHomeDir, fileName));
                     } else {
-                        System.out.println("Receiving actual file data...");
+//                        System.out.println("Receiving actual file data...");
                         receiveFile(packet);
                     }
                     break;
@@ -218,19 +224,36 @@ public class HacP2P {
     }
 
     private void checkHeartbeats (HacPacket packet) {
-        System.out.println("Received heartbeat from node: " + packet.getNodeID());
+//        System.out.println(GREEN + "Received heartbeat from node: " + packet.getNodeID() + RESET);
         activePeers.put((int) packet.getNodeID(), "ACTIVE");
+        nodeFiles.put((int) packet.getNodeID(), packet.getData() != null ? new Gson().fromJson(new String(packet.getData()), List.class) : new ArrayList<>());
         lastHeartbeat.put((int) packet.getNodeID(), System.currentTimeMillis());
     }
 
-    private void isAlive () {
+    private void isAlive() {
         long currentTime = System.currentTimeMillis();
+        System.out.println("\n" + GREEN + "=== PEER STATUS AT " + new java.util.Date(currentTime) + " ===" + RESET);
+
+        // Mark inactive nodes based on heartbeat timeout
         for (int nodeID : lastHeartbeat.keySet()) {
             if (currentTime - lastHeartbeat.get(nodeID) > 31000) {
-                System.out.println("Node " + nodeID + " is inactive.");
                 activePeers.put(nodeID, "INACTIVE");
             }
         }
+
+        for (int nodeID : activePeers.keySet()) {
+            String status = activePeers.get(nodeID);
+            String color = status.equals("ACTIVE") ? GREEN : RED;
+
+            if (status.equals("ACTIVE")) {
+                List<String> files = nodeFiles.getOrDefault(nodeID, new ArrayList<>());
+                System.out.println(color + "Node " + nodeID + " files: " + RESET + BLUE + files + RESET);
+            } else {
+                System.out.println(color + "Node " + nodeID + " is INACTIVE" + RESET);
+            }
+        }
+
+        System.out.println("\n" + GREEN + "===================================================" + RESET);
     }
 
 
@@ -239,7 +262,7 @@ public class HacP2P {
         File path = new File(pathToNodeHomeDir);
         if (!path.exists()) {
             path.mkdirs();
-            System.out.println("Home directory not detected. Created: " + pathToNodeHomeDir);
+            System.out.println(GREEN + "Home directory not detected. Created: " + pathToNodeHomeDir + RESET);
         }
     }
 
@@ -247,7 +270,7 @@ public class HacP2P {
     public List<String> retrieveDirItems() {
         File dir = new File(pathToNodeHomeDir);
         if (!dir.exists() || !dir.isDirectory()) {
-            System.out.println("Home directory does not exist.");
+            System.out.println(RED + "Home directory does not exist." + RESET);
             return new ArrayList<>();
         }
 
@@ -323,8 +346,13 @@ public class HacP2P {
                 InetAddress address = InetAddress.getByName(node.getIp());
                 DatagramPacket sendPacket = new DatagramPacket(packetBytes, packetBytes.length, address, port);
                 sendSocket.send(sendPacket);
-                System.out.println("Sent file list to: " + node.getIp());
+//                System.out.println("Sent file list to: " + node.getIp());
             }
+        } catch (java.net.NoRouteToHostException e) {
+            System.err.println(RED + "Error: Unable to reach host - no route available "  + RESET);
+        }  catch (java.net.SocketException e) {
+            System.err.println(RED + "Error: Host is down " + RESET);
+
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -334,7 +362,7 @@ public class HacP2P {
     private void compareFileLists(HacPacket packet) {
         byte[] data = packet.getData();
         if (data.length == 0) {
-            System.out.println("Received an empty file list.");
+//            System.out.println("Received an empty file list.");
             return;
         }
 
@@ -355,10 +383,10 @@ public class HacP2P {
         for (String fileName : localFileSet) {
             if (!fileName.equalsIgnoreCase("config.json") && !receivedFileSet.contains(fileName)) {
                 if (recentlyBroadcastedFiles.contains(fileName)) {
-                    System.out.println("Skipping redundant broadcast for: " + fileName);
+//                    System.out.println("Skipping redundant broadcast for: " + fileName);
                     continue;
                 }
-                System.out.println("New file detected: " + fileName + " - Broadcasting update to peers.");
+//                System.out.println("New file detected: " + fileName + " - Broadcasting update to peers.");
                 filesToBroadcast.add(fileName);
                 recentlyBroadcastedFiles.add(fileName);
             }
@@ -366,7 +394,7 @@ public class HacP2P {
 
         for (String fileName : receivedFileSet) {
             if (!localFileSet.contains(fileName) && !deletedFiles.containsKey(fileName)) {  // Prevent re-requesting deleted files
-                System.out.println("Missing file detected: " + fileName + " - Requesting from Node " + packet.getNodeID());
+                System.out.println(LIGHT_RED + "Missing file detected: " + fileName + " - Requesting from Node " + packet.getNodeID() + RESET);
                 filesToDownload.add(fileName);
             }
         }
@@ -383,7 +411,7 @@ public class HacP2P {
     // Method to read a file, use HacPacket to transform it into a message and send it to the node that requires it.
     public void sendFile(String peerIP, File file) {
         if (!file.exists()) {
-            System.out.println("Error: File does not exist on this node. Cannot send: " + file.getName());
+            System.out.println(RED + "Error: File does not exist on this node. Cannot send: " + file.getName() + RESET);
             return;
         }
 
@@ -392,7 +420,7 @@ public class HacP2P {
             byte[] fileNameBytes = file.getName().getBytes();
 
             if (fileData.length == 0) {
-                System.out.println("Warning: Sending empty file -> " + file.getName());
+                System.out.println(RED + "Warning: Sending empty file -> " + file.getName() + RESET);
                 fileData = new byte[]{0};
             }
 
@@ -413,10 +441,15 @@ public class HacP2P {
             DatagramPacket sendPacket = new DatagramPacket(packetBytes, packetBytes.length, address, port);
             sendSocket.send(sendPacket);
 
-            System.out.println("Successfully sent file: " + file.getName() + " to " + peerIP);
+//            System.out.println("Successfully sent file: " + file.getName() + " to " + peerIP);
+
+        } catch (java.net.NoRouteToHostException e) {
+            System.err.println(RED + "Error: Unable to reach host - no route available " + RESET);
+        }  catch (java.net.SocketException e) {
+            System.err.println(RED + "Error: Host is down "  + RESET);
 
         } catch (IOException e) {
-            System.out.println("Error sending file: " + file.getName());
+            System.out.println(RED + "Error sending file: " + file.getName() + RESET);
             e.printStackTrace();
         }
     }
@@ -440,9 +473,14 @@ public class HacP2P {
             DatagramPacket sendPacket = new DatagramPacket(packetBytes, packetBytes.length, address, port);
             sendSocket.send(sendPacket);
 
-            System.out.println("File request successfully sent for: " + fileName + " to " + peers.get(nodeID).getIp());
-            System.out.println("Requested file: " + fileName + " from node " + nodeID);
-        } catch (IOException e) {
+//            System.out.println("File request successfully sent for: " + fileName + " to " + peers.get(nodeID).getIp());
+//            System.out.println("Requested file: " + fileName + " from node " + nodeID);
+        } catch (java.net.NoRouteToHostException e) {
+            System.err.println(RED + "Error when requesting file: Unable to reach host - no route available for node: " + nodeID + RESET);
+        }  catch (java.net.SocketException e) {
+            System.err.println(RED + "Error when requesting file: Host is down at nodeID: " + nodeID + RESET);
+
+        }catch (IOException e) {
             e.printStackTrace();
         }
     }
@@ -452,18 +490,18 @@ public class HacP2P {
         byte[] data = packet.getData();
 
         if (data.length < 1) {
-            System.out.println("Received an empty or corrupted file transfer packet. Ignoring.");
+            System.out.println(RED + "Received an empty or corrupted file transfer packet. Ignoring." + RESET);
             return;
         }
 
         int fileNameLength = data[0] & 0xFF;
         if (data.length < 1 + fileNameLength) {
-            System.out.println("Error: Packet corrupted. File name length exceeds packet size.");
+            System.out.println(RED + "Error: Packet corrupted. File name length exceeds packet size." + RESET);
             return;
         }
 
         String fileName = new String(data, 1, fileNameLength);
-        System.out.println("Receiving file: " + fileName);
+//        System.out.println("Receiving file: " + fileName);
 
         byte[] fileData = new byte[data.length - 1 - fileNameLength];
         System.arraycopy(data, 1 + fileNameLength, fileData, 0, fileData.length);
@@ -471,9 +509,9 @@ public class HacP2P {
         File receivedFile = new File(pathToNodeHomeDir, fileName);
         try {
             Files.write(receivedFile.toPath(), fileData);
-            System.out.println("Successfully received and saved file: " + fileName);
+            System.out.println(GREEN + "Successfully received and saved file: " + fileName + RESET);
         } catch (IOException e) {
-            System.out.println("Error writing received file: " + fileName);
+            System.out.println(RED + "Error writing received file: " + fileName + RESET);
             e.printStackTrace();
         }
     }
@@ -484,23 +522,23 @@ public class HacP2P {
         File file = new File(pathToNodeHomeDir, fileName);
 
         if (!file.exists()) {
-            System.out.println("File does not exist: " + fileName);
+//            System.out.println("File does not exist: " + fileName);
             return;
         }
 
         if (file.delete()) {
-            System.out.println("File deleted: " + fileName);
+            System.out.println(GREEN + "File deleted: " + fileName + RESET);
             deletedFiles.put(fileName, System.currentTimeMillis()); // Store deletion time
             broadcastFileDeletion(fileName);
         } else {
-            System.out.println("Failed to delete file: " + fileName);
+            System.out.println(RED + "Failed to delete file: " + fileName + RESET);
         }
     }
 
     // Tells all connected nodes that a file was deleted from a node.
     private void broadcastFileDeletion(String fileName) {
         if (peers.isEmpty()) {
-            System.out.println("No peers found in config.json.");
+            System.out.println(RED + "No peers found in config.json." + RESET);
             return;
         }
         try {
@@ -517,9 +555,14 @@ public class HacP2P {
                 InetAddress address = InetAddress.getByName(node.getIp());
                 DatagramPacket datagramPacket = new DatagramPacket(packetBytes, packetBytes.length, address, port);
                 sendSocket.send(datagramPacket);
-                System.out.println("Notified " + node.getIp() + " about deleted file: " + fileName);
+//                System.out.println("Notified " + node.getIp() + " about deleted file: " + fileName);
             }
-        } catch (IOException e) {
+        } catch (java.net.NoRouteToHostException e) {
+            System.err.println(RED + "Error: Unable to reach host - no route available "  + RESET);
+        }  catch (java.net.SocketException e) {
+            System.err.println(RED + "Error: Host is down " + RESET);
+
+        }catch (IOException e) {
             e.printStackTrace();
         }
     }

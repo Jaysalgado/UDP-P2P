@@ -17,7 +17,7 @@ public class Peer {
 
         if (config != null && config.getPeers() != null) {
             this.peers = config.getPeers();
-            System.out.println("Loaded " + peers.size() + " peers from config.json.");
+//            System.out.println("Loaded " + peers.size() + " peers from config.json.");
         } else {
             this.peers = new ArrayList<>();
             System.out.println("Warning: No peers loaded from config.json.");
